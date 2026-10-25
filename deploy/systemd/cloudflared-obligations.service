@@ -1,0 +1,33 @@
+[Unit]
+Description=obligations: cloudflare tunnel for the web frontend (the only way in)
+After=network-online.target docker.service obligations-web.service obligations-agent.service
+Wants=network-online.target
+Requires=docker.service
+# Wants, not Requires, on the backends: if the dashboard is down the tunnel should
+# stay up and return 502 rather than disappearing from DNS.
+
+[Service]
+User=__USER__
+ExecStartPre=-/usr/bin/docker rm -f obligations-tunnel
+# --network host: the backends bind 127.0.0.1 only, so the connector needs the
+#   host's loopback. Same network reach a host install would have — note that
+#   includes every other loopback service on this box, so ingress rules in the
+#   Cloudflare dashboard are the only thing scoping what it can expose.
+# No volumes, no repo mount, no docker socket: this is the internet-facing
+#   process, and it gets a token and a socket, nothing else.
+# Pinned tag: cloudflared ships fast and unattended auto-update is the kind of
+#   drift this deployment avoids everywhere else. Bump deliberately.
+ExecStart=/usr/bin/docker run --rm \
+  --name obligations-tunnel \
+  --network host \
+  --env-file /etc/cloudflared/obligations.env \
+  --read-only \
+  --memory 256m \
+  --security-opt no-new-privileges \
+  cloudflare/cloudflared:2026.8.2 tunnel --no-autoupdate --metrics 127.0.0.1:7682 run
+ExecStop=/usr/bin/docker stop obligations-tunnel
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

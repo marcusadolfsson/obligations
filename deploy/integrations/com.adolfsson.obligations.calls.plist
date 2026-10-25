@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Call history, every 30 minutes. Faster than contacts because a call closes a
+  task and Alex may well ask right afterwards; slower than messages because a
+  call is a single event rather than a conversation that keeps moving.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.example.obligations.calls</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PYTHON__</string>
+    <string>__HOME__/obligations/deploy/integrations/call-log-extract.py</string>
+    <string>--push</string>
+    <string>linuxbox:obligations/integrations/calls.json</string>
+  </array>
+  <key>StartInterval</key><integer>1800</integer>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>__HOME__/Library/Logs/obligations-calls.log</string>
+  <key>StandardErrorPath</key><string>__HOME__/Library/Logs/obligations-calls.log</string>
+  <key>EnvironmentVariables</key>
+  <dict><key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
+</dict>
+</plist>

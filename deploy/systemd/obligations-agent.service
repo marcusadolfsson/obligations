@@ -1,0 +1,17 @@
+[Unit]
+Description=obligations: agent as an HTTP/SSE service (tailnet-bound)
+After=network-online.target docker.service tailscaled.service
+Wants=network-online.target tailscaled.service
+Requires=docker.service
+
+[Service]
+User=__USER__
+Environment=OBLIGATIONS=__OBLIGATIONS__ PORT=7683
+ExecStartPre=-/usr/bin/docker rm -f obligations-agent
+ExecStart=__OBLIGATIONS__/deploy/agent-service/run.sh
+ExecStop=/usr/bin/docker stop obligations-agent
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

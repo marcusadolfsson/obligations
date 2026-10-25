@@ -1,0 +1,9 @@
+{
+  "aps": {
+    "alert": { "title": "Tomorrow's Brief", "body": "Two meetings, one decision due, nothing overdue." },
+    "sound": "default",
+    "interruption-level": "active",
+    "thread-id": "brief"
+  },
+  "obligations": { "kind": "brief", "url": "/digest", "id": "sample" }
+}

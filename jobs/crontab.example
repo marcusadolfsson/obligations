@@ -1,0 +1,23 @@
+# obligations — personal assistant jobs — CRON FALLBACK
+#
+# Prefer deploy/install-systemd.sh on any systemd box: it gets you missed-run
+# catch-up (Persistent=true), failure notifications (OnFailure=), and journald
+# logs. Use this file only where systemd isn't available.
+#
+#   crontab -e   and paste. Test each job by hand first:
+#     ./deploy/run-job.sh morning
+#
+# Cron gives you a minimal environment — absolute paths only. Note cron has NO
+# missed-run catch-up: if the box is down at 07:00, that day's brief never runs.
+
+OBLIGATIONS=/home/alex/obligations
+PATH=/usr/local/bin:/usr/bin:/bin
+
+# Morning brief + reminder check — 07:00 daily
+0 7 * * *   $OBLIGATIONS/deploy/run-job.sh morning
+
+# Reminder check + journal write — 18:00 daily
+0 18 * * *  $OBLIGATIONS/deploy/run-job.sh evening
+
+# Weekly compaction — Sundays 19:00
+0 19 * * 0  $OBLIGATIONS/deploy/run-job.sh weekly

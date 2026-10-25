@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>Obligations</string>
+  <key>CFBundleDisplayName</key>
+  <string>Obligations</string>
+
+  <!-- The TCC grants (Full Disk Access, Contacts) are keyed to this identifier
+       plus the code signature. Changing it means re-granting both by hand, so
+       it is effectively permanent. -->
+  <key>CFBundleIdentifier</key>
+  <string>com.example.obligations</string>
+
+  <key>CFBundleExecutable</key>
+  <string>Obligations</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.0</string>
+  <key>CFBundleVersion</key>
+  <string>1</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>13.0</string>
+
+  <!-- Menu bar only: no Dock icon, no window on launch. -->
+  <key>LSUIElement</key>
+  <true/>
+
+  <!-- Shown in the Contacts permission prompt. macOS refuses to even ask
+       without it, and the app then looks broken rather than unpermitted. Say
+       what it is for in Alex's terms, not the API's. -->
+  <key>NSContactsUsageDescription</key>
+  <string>Obligations reads your contacts so the assistant can turn phone numbers and email addresses into names. Names are sent to your own server over Tailscale and nowhere else.</string>
+
+  <!-- Shown in the Automation prompt for Messages, on the first send. Same rule
+       as Contacts above: without it macOS refuses rather than asks. Says what
+       is actually being authorised, because "Obligations wants to control Messages"
+       on its own does not distinguish sending an approved draft from sending
+       anything at all. -->
+  <key>NSRemindersFullAccessUsageDescription</key>
+  <string>Obligations reads your reminders so the ones you tick close the matching task, and keeps a list called Obligations in step with what you owe. It never touches your other lists, never deletes, and never sets an alert.</string>
+  <key>NSRemindersUsageDescription</key>
+  <string>Obligations reads your reminders so the ones you tick close the matching task, and keeps a list called Obligations in step with what you owe. It never touches your other lists, never deletes, and never sets an alert.</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>Obligations sends messages you have approved in the chat interface, and only to people already in a recent conversation. It never sends anything you have not approved.</string>
+</dict>
+</plist>

@@ -1,0 +1,8 @@
+[Unit]
+Description=obligations: report failure of %i
+
+[Service]
+Type=oneshot
+User=__USER__
+Environment=OBLIGATIONS=__OBLIGATIONS__
+ExecStart=__OBLIGATIONS__/deploy/notify-failure.sh %i

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    The minute dispatcher, reminder-dispatch.py, inside server.sb — what the
+    obligations-dispatch systemd timer was on linuxbox (OnCalendar every minute).
+    Each run is a fresh process; launchd will not start one while the last is
+    still running, which is what the timer's oneshot unit guaranteed too.
+  -->
+  <key>Label</key>
+  <string>com.example.obligations.dispatch</string>
+  <key>BundleProgram</key>
+  <string>Contents/MacOS/obligations-server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>obligations-server</string>
+    <string>run</string>
+    <string>dispatch</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Standard</string>
+  <key>AssociatedBundleIdentifiers</key>
+  <array>
+    <string>com.example.obligations.server</string>
+  </array>
+</dict>
+</plist>

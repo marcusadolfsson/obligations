@@ -1,0 +1,25 @@
+# Browser for the visual layout tests.
+#
+# Separate from obligations:latest on purpose: the job and service image should stay
+# small and disposable, and this drags in ~2GB of browsers that nothing in
+# production needs. Built once, used only by ./deploy/visual.sh.
+#
+# The upstream image ships the browsers but not the npm package, so add it here
+# rather than installing it on every run — visual.sh runs with --network none
+# and an install would fail, correctly, at exactly the wrong moment.
+FROM mcr.co6481.example/playwright:v1.56.0-noble
+
+RUN npm install -g playwright@1.56.0
+
+# This container runs as root against a repo owned by another uid, so git
+# refuses with "dubious ownership" and the dashboard's activity panel renders an
+# error the real page never shows. A test environment that renders a different
+# page than production is worse than no test.
+RUN git config --system --add safe.directory '*'
+
+# Global installs are not on NODE_PATH for ESM, which resolves by walking
+# parents. /node_modules is the one place a script under /obligations can reach.
+RUN ln -s /usr/lib/node_modules/playwright /node_modules_pw \
+ && mkdir -p /node_modules \
+ && cp -r /usr/lib/node_modules/playwright /node_modules/ \
+ && cp -r /usr/lib/node_modules/playwright-core /node_modules/ 2>/dev/null || true

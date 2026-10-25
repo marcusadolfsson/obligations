@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    The assistant server: node server.mjs on 127.0.0.1:7683, inside server.sb.
+    Kept alive by launchd. A clean exit (status 0) is how the launcher says
+    "this Mac is not the server" — SuccessfulExit false leaves it down then,
+    and brings it back after a crash.
+  -->
+  <key>Label</key>
+  <string>com.example.obligations.server</string>
+  <key>BundleProgram</key>
+  <string>Contents/MacOS/obligations-server</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>obligations-server</string>
+    <string>run</string>
+    <string>server</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+  <!-- Standard, not Background: a brief at 07:00 should not be run at the
+       lowest CPU and I/O priority the system has. -->
+  <key>ProcessType</key>
+  <string>Standard</string>
+  <key>AssociatedBundleIdentifiers</key>
+  <array>
+    <string>com.example.obligations.server</string>
+  </array>
+</dict>
+</plist>

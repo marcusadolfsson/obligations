@@ -1,0 +1,18 @@
+{
+  "$comment": [
+    "Which Apple Reminders lists hold tasks. THIS FILE IS ALEX'S — the agent",
+    "reads it and never writes it, like integrations/ignored-senders.json.",
+    "",
+    "Anything in a list named here becomes an obligation on the To Do page.",
+    "Everything else is read, counted and left alone: `skipped()` reports it, so",
+    "'seen, not read' and 'there was nothing there' never look the same.",
+    "",
+    "Alex, 2026-09-18, when the first extract turned 'Thank you for Smoking'",
+    "from his Shows & Movies list into a task due nothing: the default list only.",
+    "Add a list here to include it; the file being absent means the same thing.",
+    "",
+    "The mirror the assistant writes lives in its own list (Obligations) and is never read",
+    "back from here, whatever this file says."
+  ],
+  "lists": ["Reminders"]
+}

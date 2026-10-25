@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Sends approved outbox drafts. Every minute, because this is the interactive
+  path: Alex taps Send in the chat UI and expects the message to go, not to
+  go eventually. The extract runs on its own slower schedule — reading and
+  sending have different urgency and are deliberately separate agents.
+
+  Runs __PYTHON__ (the resolved interpreter, substituted at install time) rather
+  than a shell wrapper, for the same TCC reason as the extractor. Note this one
+  needs Automation permission for Messages.app, not Full Disk Access — macOS
+  will prompt once, on the first send.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.example.obligations.imessage-send</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PYTHON__</string>
+    <string>__HOME__/obligations/deploy/integrations/imessage-send.py</string>
+    <string>--host</string>
+    <string>linuxbox</string>
+  </array>
+
+  <key>StartInterval</key>
+  <integer>60</integer>
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/obligations-imessage-send.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/obligations-imessage-send.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+</dict>
+</plist>

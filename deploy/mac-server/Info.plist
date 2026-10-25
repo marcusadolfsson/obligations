@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    Obligations Server.app — headless. No menu, no window, no Dock icon. It exists so
+    the assistant server has an identity of its own that holds no privacy grants;
+    Obligations.app is the only UI and drives this through `obligations-server` commands.
+  -->
+  <key>CFBundleName</key>
+  <string>Obligations Server</string>
+  <key>CFBundleDisplayName</key>
+  <string>Obligations Server</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.example.obligations.server</string>
+  <key>CFBundleExecutable</key>
+  <string>obligations-server</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.0</string>
+  <key>CFBundleVersion</key>
+  <string>1</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>13.0</string>
+  <key>LSBackgroundOnly</key>
+  <true/>
+</dict>
+</plist>

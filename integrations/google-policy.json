@@ -1,0 +1,27 @@
+{
+  "$comment": [
+    "Which granted capabilities the assistant will actually USE, per account.",
+    "",
+    "A scope cannot be narrowed. Once drive.file is in a token, nothing takes it",
+    "out except revoking the grant and consenting again -- so switching a",
+    "capability off here is a decision about what the assistant WILL use, not about",
+    "what it could. The two anyone would actually want off are drive and send,",
+    "which are exactly the two where that difference matters.",
+    "",
+    "Tracked in git because it is a decision. The tokens are not.",
+    "",
+    "  { \"work\": { \"disabled\": [\"send\"] } }",
+    "",
+    "reports as: granted mail,send -- in use mail. Never as 'send is absent'.",
+    "",
+    "`triage: \"hold\"` keeps an account's mail OUT of the work list without",
+    "making it invisible. The extractor still reads the whole mailbox, the",
+    "counts still include it, and the differ says how many it is holding -- it",
+    "simply does not offer those threads for judgement.",
+    "",
+    "  { \"work\": { \"triage\": \"hold\", \"since\": \"...\", \"why\": \"...\" } }",
+    "",
+    "This is not a way to make mail go away. Removing the key resumes triage on",
+    "the next tick, and nothing was archived or concluded while it was set."
+  ]
+}

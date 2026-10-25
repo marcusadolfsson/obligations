@@ -1,0 +1,10 @@
+[Unit]
+Description=obligations: reminder dispatch, every minute
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+AccuracySec=10
+# No Persistent= here: a missed minute is meaningless, the next one covers it.
+
+[Install]
+WantedBy=timers.target

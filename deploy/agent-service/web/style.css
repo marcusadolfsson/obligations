@@ -1,0 +1,1825 @@
+/* One stylesheet for chat, messages and dashboard.
+ *
+ * Three copies of a palette drift, and the one that drifts is the page you are
+ * not looking at. Mobile first: this is read on a phone far more than a laptop.
+ */
+
+/* THE LOOK, in one place.
+ *
+ * Alex, 2026-09-19: "make the Obligations UI feel nicer. Give it some design
+ * effort. right now it feels very component code driven." It was: thirty
+ * distinct font sizes, each component declaring its own face; a serif body
+ * that every control overrode to sans, so the serif showed up wherever
+ * somebody forgot; twelve identical pills for navigation, and the same pill
+ * again for a filter, a sort, an action, a tag and a theme switch; a debug
+ * stamp for a page title. Nothing was wrong and nothing was chosen.
+ *
+ * What is chosen now:
+ *
+ *   - Two voices. The MACHINE'S DATA — rows, dates, names, controls — is set
+ *     in the UI face (`--sans`). THE OBLIGATIONS'S OWN PROSE — a brief, the digest,
+ *     its judgement on a mail, its reply in the chat — is set in the reading
+ *     face (`--serif`). The face says who is talking before a label does.
+ *   - One scale. Nine sizes, `--t-…`, and every rule takes one of them.
+ *   - Three kinds of button, not one. A primary action fills with the accent;
+ *     a secondary is a hairline; a filter is a tab with an underline; a
+ *     destination is a text link. Their shape is their job.
+ *   - A warm-neutral ground with a terracotta accent, kept from before but
+ *     tuned: the neutrals lean toward the accent's hue rather than sitting at
+ *     pure grey, and the dark palette is its own set rather than an inversion.
+ *
+ * `--card` and `--line` keep their names because two hundred rules use them. */
+:root{
+  color-scheme:light dark;
+  --fg:#1c1a17; --bg:#f6f4ef; --mut:#6e685e; --card:#fffdf9; --raised:#efebe3;
+  --line:#e3ded4; --hot:#b3402f; --warn:#96690f; --accent:#c25a3a;
+  --ok:#3f7a58; --info:#5b7fa6;
+  --radius:12px;
+  --sans:-apple-system,"SF Pro Text",system-ui,"Segoe UI",Helvetica,Arial,sans-serif;
+  --serif:ui-serif,"New York","Iowan Old Style",Charter,Georgia,serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  --tabbar:0px;        /* the phone's bottom bar; set where it is drawn */
+}
+/* Three states, not two: light, dark, and the one most people are actually in
+   — no choice made, follow the system. An explicit choice is stamped on <html>
+   as data-theme and has to beat the media query in BOTH directions, so the
+   media query is guarded and the stamp is repeated after it. Alex,
+   2026-09-08: "enable a dark/light mode toggle in the header." */
+@media(prefers-color-scheme:dark){
+  :root:not([data-theme=light]){--fg:#ebe7df; --bg:#141311; --mut:#9a948a; --card:#1d1b18; --raised:#26231f;
+        --line:#2e2a25; --hot:#e5806c; --warn:#d3a44a; --accent:#d97a5f; --ok:#6fb08c; --info:#8aa9cc}
+}
+:root[data-theme=dark]{color-scheme:dark;
+  --fg:#ebe7df; --bg:#141311; --mut:#9a948a; --card:#1d1b18; --raised:#26231f;
+  --line:#2e2a25; --hot:#e5806c; --warn:#d3a44a; --accent:#d97a5f; --ok:#6fb08c; --info:#8aa9cc}
+:root[data-theme=light]{color-scheme:light;
+  --fg:#1c1a17; --bg:#f6f4ef; --mut:#6e685e; --card:#fffdf9; --raised:#efebe3;
+  --line:#e3ded4; --hot:#b3402f; --warn:#96690f; --accent:#c25a3a; --ok:#3f7a58; --info:#5b7fa6}
+
+/* `el.hidden = true` must actually hide it.
+   The browser's own rule is `[hidden]{display:none}`, and ANY author rule with
+   a display beats it — so `.search-overlay{display:flex}` meant the search
+   modal could not be closed at all: not by clicking the backdrop, not by
+   Escape, not by the shortcut that opened it. Alex, 2026-09-08, reported the
+   backdrop; the other two were the same bug. `.chatfab[hidden]` below is the
+   scar from the last time somebody hit this and fixed it for one element. */
+[hidden]{display:none !important}
+
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+
+body{
+  /* The UI face. Prose blocks opt into the reading face by class — see the
+     "two voices" section at the end of this file — so nothing gets the serif
+     by forgetting to say otherwise. */
+  font:16px/1.5 var(--sans);
+  color:var(--fg); background:var(--bg);
+  -webkit-font-smoothing:antialiased;
+  /* dvh, not vh: mobile browser chrome changes the viewport, and vh leaves the
+     composer under the address bar or off-screen entirely. */
+  min-height:100dvh;
+  -webkit-text-size-adjust:100%;
+}
+
+/* Anything that could be a long unbroken token — a URL, a session id, a phone
+   handle — must wrap rather than widen the page.
+
+   `break-word`, NOT `anywhere`. Alex, 2026-09-22, of a pushed note: "it line
+   wraps oddly." `anywhere` offers the line breaker a break at every character,
+   and it takes them — so ordinary sentences came apart mid-word while there
+   was still room at the next space. `break-word` breaks only a word that
+   cannot fit on a line of its own, which is what this rule was for. The rows
+   that must never widen their column keep `anywhere` on their own selectors. */
+body,p,li,td,th,h1,h2,h3,h4,h5,h6{overflow-wrap:break-word}
+
+.wrap{max-width:46rem;margin-inline:auto;padding:1rem}
+
+h1{font:600 1.5rem/1.2 var(--sans);letter-spacing:-.02em;margin:0;text-wrap:balance}
+h2{font:600 .72rem/1 var(--sans);text-transform:uppercase;
+   letter-spacing:.09em;color:var(--mut);margin:1.8rem 0 .6rem}
+h3,h4{font:600 1rem/1.35 var(--sans);margin:1.1rem 0 .4rem}
+/* Embedded file content is rendered two levels down so it cannot impersonate a
+   page section. Keep it visibly subordinate. */
+h5,h6{font:600 .92rem/1.35 var(--sans);margin:.9rem 0 .3rem;
+  color:var(--mut)}
+h5:first-child,h6:first-child{margin-top:0}
+
+a{color:inherit}
+code{font:.86em var(--mono);
+     background:color-mix(in srgb,var(--mut) 14%,transparent);
+     padding:.1em .35em;border-radius:5px}
+pre.code{background:color-mix(in srgb,var(--mut) 12%,transparent);
+  border-radius:10px;padding:.7rem .85rem;overflow-x:auto;margin:.6rem 0}
+pre.code code{background:none;padding:0}
+blockquote{margin:.6rem 0;padding-left:.9rem;border-left:2px solid var(--line);color:var(--mut)}
+.mut{color:var(--mut)}
+/* The model switch, when it is thrown. Alex, 2026-09-21. A warn rule rather
+   than the hot one: paused judgement is a decision of his, not a failure — and
+   the failures banner above it has to stay the louder of the two. */
+.gatebar{border-left:3px solid var(--warn);background:color-mix(in srgb,var(--warn) 8%,transparent);
+  padding:.5rem .7rem;margin:0 0 .6rem;border-radius:.2rem;font-size:.86rem;line-height:1.45}
+.gatebar-go{color:var(--accent);text-decoration:underline;white-space:nowrap}
+.overdue{color:var(--hot);font-weight:600}
+.soon{color:var(--warn)}
+
+/* --- masthead --------------------------------------------------------------
+   Brand, navigation, tools — one rule across the top, the same on every page.
+   Destinations are text on that rule, the current one underlined in the
+   accent; the consulted pages sit after a divider, a shade quieter. What this
+   page is comes on the row beneath (`.pagehead`), so the nav is not asked to
+   be both a menu and a title. */
+.top{display:flex;align-items:center;gap:1.4rem;padding:.55rem 0 0;
+  border-bottom:1px solid var(--line);margin-bottom:0;min-height:2.9rem}
+.brand{flex:none;font:700 .92rem/1 var(--sans);letter-spacing:-.01em;color:var(--fg);
+  text-decoration:none;padding:.45rem 0 .7rem;display:inline-flex;align-items:center;gap:.3rem}
+/* The mark: the word and a terracotta point. */
+.brand::after{content:"";width:.42rem;height:.42rem;border-radius:999px;background:var(--accent);
+  transform:translateY(.05rem)}
+.links{display:flex;align-items:stretch;gap:0 1.05rem;flex-wrap:wrap;min-width:0}
+.pill{font:500 .92rem/1 var(--sans);padding:.65rem 0 .8rem;
+  border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;
+  color:var(--mut);text-decoration:none;cursor:pointer;white-space:nowrap;
+  margin-bottom:-1px;transition:color .12s}
+.pill:hover{color:var(--fg)}
+.pill[aria-current=page]{color:var(--fg);border-bottom-color:var(--accent);font-weight:600}
+.more-inline{display:flex;gap:0 .9rem;margin-left:.2rem;padding-left:1.05rem;
+  border-left:1px solid var(--line);align-self:center;padding-top:.45rem;padding-bottom:.55rem}
+.more-inline .pill{font-size:.85rem;padding:.2rem 0 .25rem}
+details.more{display:none}
+.navtools{margin-left:auto;display:flex;align-items:center;gap:.35rem;flex:none}
+.navtools .pill{padding:.35rem .55rem;border-radius:6px;border:0;font-size:.85rem;margin:0}
+.navtools .pill:hover{background:var(--raised);color:var(--fg)}
+.navtools .nav-search{font-size:1.1rem;padding:.2rem .55rem .3rem}
+/* The count on a destination: a small filled figure after the word. */
+.navbadge{display:inline-block;vertical-align:.12em;margin-left:.3rem;min-width:1.05rem;height:1.05rem;
+  padding:0 .3rem;border-radius:999px;background:var(--accent);color:#fff;
+  font:600 .62rem/1.05rem var(--sans);text-align:center;letter-spacing:0}
+.navbadge.has-stale{background:var(--warn)}
+.navbadge:empty{display:none}
+
+/* The page heading: what this is, and the clock as a person reads it. */
+.pagehead{display:flex;align-items:baseline;gap:.8rem;flex-wrap:wrap;margin:1.1rem 0 .7rem}
+.stamp{font:.85rem var(--sans);color:var(--mut);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* --- cards / modules ------------------------------------------------------ */
+
+/* ONE ROW GRAMMAR.
+ *
+ * Alex, 2026-09-19, with a PDF of every list side by side: "we need to
+ * standardize on the design language throughout." They had drifted into two
+ * grammars and three paddings — To Do and People drew a flat row with no kind
+ * rule, Mail and Briefs drew a card with one, the Outbox drew a third thing,
+ * and `.card` was defined twice in this file with different padding and radius.
+ * Scanning four lists meant learning four shapes for the same idea.
+ *
+ * So every list row — a task, a judged thread, a brief, a person, a draft —
+ * takes these tokens: same ground, same border, same radius, same padding, same
+ * 3px kind rule down the left. What differs between lists is the CONTENT and
+ * the colour of that rule, which is the only thing that should differ. */
+:root{
+  --row-pad-y:.7rem;
+  --row-pad-x:.85rem;
+  --row-rule:1rem;            /* left padding that clears the kind rule */
+  --row-gap:.45rem;
+}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:.9rem 1.05rem}
+.card + .card{margin-top:.6rem}
+.card > :first-child{margin-top:0}
+.card > :last-child{margin-bottom:0}
+.grid{display:grid;gap:.6rem}
+@media(min-width:44rem){.grid.two{grid-template-columns:1fr 1fr}}
+
+table{border-collapse:collapse;width:100%;
+  font:.92rem/1.5 var(--sans)}
+td,th{text-align:left;padding:.4rem .6rem .4rem 0;border-bottom:1px solid var(--line);
+  vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{color:var(--mut);font-weight:600;font-size:.78rem;text-transform:uppercase;
+  letter-spacing:.05em}
+
+ul,ol{margin:.5rem 0;padding-left:1.2rem}
+li{margin:.2rem 0}
+ul.tasks{list-style:none;padding-left:0}
+ul.tasks li{display:flex;gap:.55rem;align-items:baseline}
+ul.tasks li.done{color:var(--mut);text-decoration:line-through}
+ul.tasks .box{flex:none;width:1.05em;height:1.05em;border:1.5px solid var(--line);
+  border-radius:4px;display:inline-flex;align-items:center;justify-content:center;
+  font-size:.72em;line-height:1}
+ul.tasks li.done .box{border-color:var(--mut)}
+
+.stat{display:flex;gap:1.4rem;flex-wrap:wrap;
+  font:.92rem/1.4 var(--sans)}
+.stat div{display:flex;flex-direction:column}
+.stat b{font-size:1.5rem;font-weight:600}
+.stat span{color:var(--mut);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}
+
+.empty{color:var(--mut);padding:1.2rem 0;text-align:center;
+  font:.92rem var(--sans)}
+
+/* --- obligations ("waiting on you") ---------------------------------------
+   Cards, not a table. A three-column table with prose in the last column is
+   unreadable at 390px: the prose column gets a third of the width and wraps to
+   one word per line. Age and name share a line; the obligation gets the full
+   width beneath it. */
+.obsort{display:flex;gap:.35rem;margin-bottom:.6rem}
+.obsort button{font:500 .78rem/1 var(--sans);padding:.4rem .2rem;
+  border:0;background:transparent;color:var(--mut);cursor:pointer}
+.obsort button[aria-pressed=true]{color:var(--fg);font-weight:600}
+
+.ob,.item{position:relative;overflow:hidden;border-radius:var(--radius);
+  margin-bottom:.5rem}
+.ob{background:#2f6b46}   /* revealed by a leftward swipe */
+/* What the swipe will do, said while it happens (dashboard.js, swipeable):
+   the words come from data-swipe and fade in with the distance travelled
+   (--p, 0 to 1); past the threshold the strip turns bright green and the
+   words gain their tick. A row that cannot be swiped has no data-swipe and
+   shows nothing here. */
+.ob::before{content:attr(data-swipe);position:absolute;right:.85rem;top:50%;
+  transform:translateY(-50%);color:#fff;font:700 .9rem var(--sans);
+  opacity:0;transition:opacity .12s,transform .12s;white-space:nowrap}
+.ob.swiping::before{opacity:calc(.3 + .7 * var(--p, 0))}
+.ob.armed{background:#2f9a5c}
+.ob.armed::before{opacity:1;transform:translateY(-50%) scale(1.06)}
+/* The ground and shape come from the shared row grammar above; what is left
+   here is the swipe. `position:relative` is load-bearing: an absolutely
+   positioned ::before paints above a static sibling, and without it the "done"
+   reveal showed through the card text. */
+.ob-inner{transition:transform .18s ease,opacity .18s ease;
+  touch-action:pan-y}          /* vertical drags stay page scrolls */
+.ob.armed .ob-inner{border-color:#2f6b46}
+.ob.closing .ob-inner{transform:translateX(-110%);opacity:0}
+.ob.failed .ob-inner{border-color:var(--hot)}
+
+/* The headline. This is the line the page is read by — everything else on the
+   card is answering a question you only ask once the headline caught you. */
+.ob-title{font:600 .92rem/1.4 var(--sans);
+  overflow-wrap:anywhere;margin-bottom:.3rem}
+/* The meta row wraps rather than truncating: at 390px a date, a name and three
+   chips do not fit on one line, and eliding the name is worse than a second row. */
+.ob-meta{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap}
+.ob-age{font:600 .78rem var(--sans);white-space:nowrap}
+.ob-who{font:.78rem var(--sans);color:var(--mut);
+  overflow-wrap:anywhere;min-width:0}
+.ob-pri{font:600 .66rem var(--sans);text-transform:uppercase;
+  letter-spacing:.06em;padding:.12rem .38rem;border-radius:999px;border:1px solid currentColor}
+.ob-pri.high{color:var(--hot)} .ob-pri.low{color:var(--mut)}
+/* Where a task came from, one chip per source with a count. Eight pieces of
+   evidence is one fact — "answering this settles eight threads" — not eight
+   identical chips, which is what this used to paint. */
+.ob-src{font:.66rem/1 var(--mono);color:var(--mut);
+  padding:.16rem .38rem;border-radius:5px;
+  background:color-mix(in srgb,var(--mut) 14%,transparent)}
+.ob .what{font:.92rem/1.55 var(--sans);overflow-wrap:anywhere;
+  color:var(--mut)}
+/* What discharge looks like. Quiet — it is context for the task above it, not
+   another task. */
+.ob.closed .ob-title{color:var(--mut)}
+.ob.closed{border-left-color:var(--line)}
+.ob-closes{margin-top:.5rem;font:.78rem/1.45 var(--sans);
+  color:var(--mut);padding-left:.65rem;border-left:2px solid var(--line)}
+
+/* Closing is a mode, not a fifth button. It used to be inserted INTO the
+   actions row, which is a wrapping flex container, so the input took a block
+   on the left and threw Close, Move due, Draft follow-up and Ask the assistant out
+   to its right at a different height. Alex, 2026-09-08: "very unbalanced."
+   Now it replaces the row while it is open. */
+.outcomebox{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.7rem;max-width:var(--measure)}
+.outcomebox input{flex:1 1 100%;min-width:0;border:1px solid var(--line);
+  border-radius:12px;background:var(--bg);color:inherit;padding:.5rem .7rem;
+  /* 16px exactly, or Safari zooms the page on focus and does not zoom back. */
+  font:16px/1.4 var(--sans)}
+.outcomebox button{font:600 .85rem var(--sans);padding:.45rem 1rem;
+  border:1px solid var(--accent);border-radius:999px;background:var(--accent);
+  color:#fff;cursor:pointer}
+.outcomebox button.ghost{background:transparent;border-color:var(--line);color:var(--mut)}
+
+.ob-done{margin-top:.6rem;font:500 .78rem var(--sans);
+  padding:.35rem .8rem;border:1px solid var(--line);border-radius:999px;
+  background:transparent;color:var(--mut);cursor:pointer}
+
+/* --- obligation drill-down ------------------------------------------------ */
+.ob-title.tappable{cursor:pointer}
+.ob-title.tappable::after{content:" ›";color:var(--mut);display:inline-block;
+  transition:transform .15s ease}
+.ob-title.tappable.open::after{transform:rotate(90deg)}
+.ob-detail{margin-top:.7rem;padding-top:.7rem;border-top:1px solid var(--line)}
+
+/* The threads an obligation was read out of. Each opens the assistant's own copy;
+   an archived one is still evidence, so it is shown and struck rather than
+   dropped — dropping it would make the count on the card unexplainable. */
+.ob-ev{margin-top:.6rem;display:flex;flex-direction:column;gap:.15rem}
+.ob-evrow{font:.78rem/1.5 var(--sans);color:var(--accent);
+  text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ob-evrow::before{content:"› ";color:var(--mut)}
+.ob-evrow.done{color:var(--mut)}
+.ob-evrow.done::before{content:"\2713 "}
+.msgwho{font:600 .72rem/1 var(--sans);text-transform:uppercase;
+  letter-spacing:.06em;color:var(--mut);margin:.6rem 0 .25rem;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.msgwho:first-child{margin-top:0}
+.msgwho.mine{text-align:right}
+.msgline{font:.85rem/1.45 var(--sans);margin:.25rem 0;
+  padding:.45rem .65rem;border-radius:13px;max-width:85%;width:fit-content;
+  background:color-mix(in srgb,var(--mut) 13%,transparent);overflow-wrap:anywhere}
+.msgline.mine{margin-left:auto;background:color-mix(in srgb,var(--accent) 20%,transparent)}
+.replybox{margin-top:.7rem}
+.replybox textarea{display:block;width:100%;min-width:0;
+  border:1px solid var(--line);border-radius:12px;
+  background:var(--bg);color:inherit;padding:.55rem .7rem;resize:vertical;
+  /* 16px exactly. Safari zooms the whole page when you focus a field with text
+     smaller than this, and it does not zoom back out — one tap on the reply box
+     left the task list scrolled off to the right. */
+  font:16px/1.45 var(--sans);max-height:9rem}
+/* Send sits under the box, not beside it. Beside it, the button is squeezed
+   against the right edge on a phone and was the first thing pushed off-screen. */
+.replyrow{display:flex;justify-content:flex-end;margin-top:.45rem}
+.replybox button{font:600 .85rem var(--sans);
+  padding:.5rem 1.1rem;border:1px solid var(--accent);border-radius:999px;
+  background:var(--accent);color:#fff;cursor:pointer}
+.replybox button:disabled{opacity:.5}
+
+/* --- links inside message text -------------------------------------------- */
+/* A pasted search URL is 600 characters of tracking parameters. Rendered raw it
+   wraps to fifteen lines and buries the sentence next to it. */
+.linkcard{display:block;margin:.3rem 0;padding:.5rem .65rem;text-decoration:none;
+  border:1px solid var(--line);border-radius:11px;
+  background:color-mix(in srgb,var(--mut) 8%,transparent)}
+.lc-kind{font:600 .66rem/1 var(--sans);text-transform:uppercase;
+  letter-spacing:.07em;color:var(--mut);margin-bottom:.25rem;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lc-title{font:.85rem/1.35 var(--sans);color:var(--fg);
+  overflow-wrap:anywhere}
+.linkinline{color:var(--accent);text-decoration:underline;
+  text-underline-offset:2px;overflow-wrap:anywhere}
+.replyerr{color:var(--hot);font:.85rem var(--sans);margin-top:.4rem}
+
+/* --- reading list --------------------------------------------------------- */
+.read-count{font:.78rem var(--sans);margin-bottom:.7rem}
+.read-item{display:block;text-decoration:none;color:inherit;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:.7rem .85rem;margin-bottom:.5rem}
+.read-head{display:flex;justify-content:space-between;gap:.6rem;align-items:baseline}
+.read-from{font:600 .72rem var(--sans);text-transform:uppercase;
+  letter-spacing:.05em;color:var(--mut);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;min-width:0}
+.read-when{flex:none;font:.72rem var(--sans);color:var(--mut)}
+.read-subject{font:600 .92rem/1.4 var(--sans);margin:.25rem 0 .2rem;
+  overflow-wrap:anywhere}
+.read-snippet{font:.85rem/1.45 var(--sans);color:var(--mut);
+  overflow-wrap:anywhere}
+
+/* Grouped by sender. Native <details>: collapse for free, keyboard and screen
+   reader for free. The ignore button lives in the summary because the sender is
+   the thing it acts on. */
+.read-group{margin:0 0 1rem}
+.read-group>summary{display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap;
+  cursor:pointer;list-style:none;padding:.35rem 0;border-bottom:1px solid var(--line);
+  margin-bottom:.5rem}
+.read-group>summary::-webkit-details-marker{display:none}
+.read-group>summary::before{content:"\25B8";color:var(--mut);font-size:.72rem;
+  transition:transform .15s ease}
+.read-group[open]>summary::before{transform:rotate(90deg)}
+.read-group-name{font:600 .85rem var(--sans)}
+.read-group-addr{font:.72rem var(--mono);color:var(--mut);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;max-width:14rem}
+.read-group-count{margin-left:auto;font:600 .78rem var(--mono);
+  color:var(--mut)}
+.read-ignore{font:500 .72rem var(--sans);padding:.25rem .6rem;
+  border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--mut);
+  cursor:pointer;white-space:nowrap}
+.read-ignore[data-armed="1"]{border-color:var(--hot);color:var(--hot)}
+.read-group.ignored{opacity:.55}
+
+/* The item is a row on the left; the subject selects it into the right pane. */
+.read-item.read{opacity:.55}
+.read-item.selected{border-color:var(--fg)}
+.read-subject.tappable{cursor:pointer;flex:1;min-width:0}
+.read-subject.tappable::after{content:" \203A";color:var(--mut)}
+.list .read-item{padding:.55rem .75rem;margin-bottom:.4rem}
+.list .read-subject{font-size:.92rem}
+.list .read-snippet{font-size:.85rem;display:-webkit-box;-webkit-line-clamp:2;
+  -webkit-box-orient:vertical;overflow:hidden}
+.list .read-group>summary{margin-bottom:.4rem}
+.read-pane-meta{font:.78rem var(--sans);color:var(--mut);
+  margin:0 0 .8rem;overflow-wrap:anywhere}
+.read-detail{margin-top:.4rem}
+.read-msghead{font:600 .72rem/1 var(--sans);text-transform:uppercase;
+  letter-spacing:.06em;color:var(--mut);margin:.6rem 0 .3rem}
+.read-msghead:first-child{margin-top:0}
+/* A stranger's text, escaped and shown as text. Wrapped, because a newsletter
+   line is often 300 characters and a horizontal scroll here is unreadable. */
+.read-body{font:.85rem/1.5 var(--sans);white-space:pre-wrap;
+  overflow-wrap:anywhere;margin:0}
+.read-gmail{display:inline-block;margin-top:.6rem;font:.78rem var(--sans);
+  color:var(--mut)}
+
+/* --- otp autofill test (scratch page) ------------------------------------- */
+.otp-label{display:block;font:600 .72rem var(--sans);
+  text-transform:uppercase;letter-spacing:.07em;color:var(--mut);margin-bottom:.4rem}
+/* 16px minimum or Safari zooms the page on focus and never zooms back. */
+#otp{width:100%;border:1px solid var(--line);border-radius:12px;background:var(--bg);
+  color:inherit;padding:.7rem .8rem;font:600 1.5rem/1.2 var(--mono);
+  letter-spacing:.25em;text-align:center}
+.otp-saw{margin-top:.8rem;font:.85rem var(--sans);color:var(--mut)}
+.otp-saw.filled{color:#2f6b46;font-weight:600}
+.otp-saw.typed{color:var(--warn)}
+.otp-copy{font:500 .78rem var(--sans);padding:.35rem .8rem;
+  border:1px solid var(--line);border-radius:999px;background:transparent;
+  color:var(--mut);cursor:pointer}
+
+/* --- task sections --------------------------------------------------------
+   Native <details>, so collapse is free and works with a keyboard and a screen
+   reader. Today and upcoming open; the two waiting lists are a weekly sweep. */
+.sec{margin:1.4rem 0 0}
+.sec>summary{display:flex;align-items:baseline;gap:.5rem;cursor:pointer;
+  list-style:none;padding:.35rem 0;border-bottom:1px solid var(--line);
+  margin-bottom:.7rem}
+.sec>summary::-webkit-details-marker{display:none}
+.sec>summary::before{content:"\25B8";color:var(--mut);font-size:.72rem;
+  transition:transform .15s ease}
+.sec[open]>summary::before{transform:rotate(90deg)}
+.sec-name{font:600 .78rem var(--sans);text-transform:uppercase;
+  letter-spacing:.07em}
+/* The count sits right so the numbers line up down the page — four sections
+   whose counts you can compare at a glance is the point of showing them. */
+.sec-count{margin-left:auto;font:600 .78rem var(--mono);
+  color:var(--mut)}
+
+/* --- tasks: filter + two panes ------------------------------------------------
+   Alex, 2026-09-03: titles and dates on the left, body and messages on the
+   right, a filter across the top. On a phone the panes take turns rather than
+   squeeze: the list, then the detail full-width with a way back. */
+/* Filters are TABS: text on a rule, the chosen one underlined. A view is not
+   an action, so it does not get a button's shape — and a row of six pills
+   under a row of twelve pills was most of what made every page look like a
+   component library. The count sits after the word in the mono face. */
+.filt{display:flex;gap:0 1.15rem;flex-wrap:wrap;align-items:baseline;margin:0 0 .8rem;
+  border-bottom:1px solid var(--line)}
+.filt button,.filt .chip{font:500 .85rem/1 var(--sans);padding:.5rem 0 .6rem;
+  border:0;border-bottom:2px solid transparent;border-radius:0;margin-bottom:-1px;
+  background:transparent;color:var(--mut);
+  cursor:pointer;display:inline-flex;gap:.4rem;align-items:baseline;transition:color .12s}
+.filt button:hover,.filt .chip:hover{color:var(--fg)}
+/* A sub-page's way back to its parent — Priorities under To Do, Notes under
+   System (2026-09-30). */
+.crumb{display:inline-block;margin:0 0 .6rem;font-size:.85rem;color:var(--mut);text-decoration:none}
+.crumb:hover{color:var(--fg)}
+.sys-sub{color:var(--mut);font-size:.9rem;margin:0 0 1rem}
+.filt a.chip{text-decoration:none;color:var(--mut)}
+.filt button b,.filt .chip b{font:500 .72rem var(--mono);color:var(--mut)}
+.filt button[aria-selected=true],.filt .chip[aria-selected=true]{border-bottom-color:var(--fg);color:var(--fg);font-weight:600}
+.filt button[aria-selected=true] b,.filt .chip[aria-selected=true] b{color:var(--mut)}
+
+/* minmax(0,1fr), not the implicit `auto` track. An `auto` track's minimum is
+   min-content, and a row title is `white-space:nowrap` — so its min-content is
+   the whole title, the single mobile column grew to the longest one, and the
+   page scrolled sideways with the titles running off the right edge and the
+   date pushed out of sight. The ellipsis never fired because the box was never
+   the constraint. Tasks was immune only by accident: `.ob-row` floors its own
+   columns at 0. Floor the track instead, so every pane page is safe. */
+.split{display:grid;gap:.9rem;align-items:start;grid-template-columns:minmax(0,1fr)}
+/* Same reason one level down: these hold nowrap rows and must be allowed to
+   shrink below their content rather than pushing the grid wider. */
+.split>.list,.split>.listcol,.split>.pane{min-width:0}
+.list .ob{margin-bottom:.4rem}
+.list .ob-inner{padding:.6rem .75rem}
+.list .ob-title{font-size:.92rem;margin-bottom:.2rem}
+.ob.selected .ob-inner{border-color:var(--fg)}
+.pane{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  padding:.9rem 1.05rem;min-height:6rem;min-width:0;overflow:hidden}
+/* The evidence rows are nowrap+ellipsis. Inside the card they were clipped by
+   its overflow:hidden; here they need to be told to shrink, or a long subject
+   pushes the page 5px wider than the phone. */
+.pane .ob-ev,.pane .ob-evrow{min-width:0;max-width:100%}
+.pane .ob-meta{min-width:0}
+.pane .empty{padding:2rem 0}
+.pane-inner>.ob-meta{margin-bottom:.7rem}
+/* A reading measure. Alex, 2026-09-08: "lets clean this UI up, it is very
+   unbalanced." On a wide window the pane had no measure at all, so a paragraph
+   ran the full two thousand pixels and the eye lost the line on the way back.
+   Everything that is prose is capped; the evidence rows are capped with it, or
+   their trailing "open" ends up a screen away from the link it belongs to. */
+.pane-inner{--measure:68ch}
+.pane-inner>.pane-title,.pane-inner>.ob-meta,.pane .ob-closes,
+.pane .ob-ev,.pane .what-history{max-width:var(--measure)}
+/* The triage's summary runs the width of the pane, like the message under it.
+   Alex, 2026-09-19: "on the AI summary, can we make it fill the width of the
+   window." It was capped at the reading measure while the mail below it was
+   not, so the one paragraph the page exists to deliver was the narrowest thing
+   on it. */
+.pane .what{max-width:none}
+/* The actions are a control strip, not prose, so they get their own width —
+   but the same left edge, which is what makes the column read as one. */
+.pane .ob-actions{max-width:var(--measure)}
+/* An <h2>, so it inherited the section eyebrow's uppercase and tracking and
+   every pane opened with its subject SHOUTING IN SPACED CAPITALS. Not a
+   choice anybody made; the fix is to say so. */
+.pane-title{margin:0 0 .35rem;font:600 1.06rem/1.35 var(--sans);
+  text-transform:none;letter-spacing:-.01em;color:var(--fg);overflow-wrap:anywhere;text-wrap:balance}
+.pane .what{color:inherit;margin:.6rem 0}
+/* A long `what` is a changelog, so it reads as paragraphs with the newest
+   entry first and the rest folded away. Alex, 2026-09-08. */
+.pane .what p{margin:0 0 .7rem}
+.pane .what p:last-child{margin-bottom:0}
+.what-history{margin:.2rem 0 .8rem;border-top:1px solid var(--line);padding-top:.5rem}
+.what-history summary{cursor:pointer;font-size:.85rem;color:var(--mut);list-style:none}
+.what-history summary::-webkit-details-marker{display:none}
+.what-history summary::before{content:"▸ ";display:inline-block;transition:transform .12s}
+.what-history[open] summary::before{content:"▾ "}
+.what-history summary:hover{color:var(--fg)}
+.what-entry{margin:.7rem 0 0;padding-left:.7rem;border-left:2px solid var(--line)}
+.what-entry p{margin:0 0 .5rem;font-size:.85rem;line-height:1.55}
+.what-when{font-size:.72rem;letter-spacing:.05em;text-transform:uppercase;color:var(--mut);margin-bottom:.25rem}
+.pane .ob-detail{border-top:0;padding-top:0;margin-top:.6rem}
+.pane .ob-detail:empty{display:none}
+.pane-back,.pane-act{font:500 .78rem var(--sans);padding:.3rem .7rem;
+  border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--mut);
+  cursor:pointer;margin-bottom:.7rem}
+.pane-act:hover{border-color:var(--fg);color:var(--fg)}
+/* `.pane-act` exists because `.pane-back` is HIDDEN on a wide screen — there is
+   nothing to go back from when both panes are visible — and every action button
+   that borrowed the back button's look inherited that. Alex, 2026-09-19:
+   "on the mail pane, add an Ignore emails from this sender button." It was
+   there, and had been invisible on every desktop since it was built; so had
+   "read this sender in full", "ignore everyone at …", the priorities save, and
+   dismiss. A shared class meant a layout rule about navigation silently
+   governed whether he could act. */
+/* Narrow: one pane at a time. Selecting hides the list; back restores it. */
+.split.showing .list,.split.showing .listcol{display:none}
+.split:not(.showing) .pane{display:none}
+@media(min-width:44rem){
+  .split{grid-template-columns:minmax(16rem,2fr) 3fr}
+  .split.showing .list{display:block}
+  .split.showing .listcol{display:flex}
+  .split:not(.showing) .pane{display:block}
+  .pane{position:sticky;top:.6rem;max-height:calc(100vh - 1.2rem);overflow:auto}
+  .pane-back{display:none}
+}
+
+/* --- system: schedule / job output / activity ----------------------------- */
+.sched{display:flex;flex-direction:column}
+.sched-row{display:grid;grid-template-columns:7rem 6rem 1fr;gap:.6rem;align-items:baseline;
+  padding:.45rem 0;border-bottom:1px solid var(--line);
+  font:.85rem/1.4 var(--sans)}
+.sched-row:last-child{border-bottom:0}
+.sched-name{font-weight:600}
+.sched-status{font:600 .72rem var(--sans);text-transform:uppercase;
+  letter-spacing:.06em}
+.sched-ok .sched-status{color:#2f8f5b}
+.sched-bad .sched-status{color:var(--hot)}
+.sched-quiet .sched-status{color:var(--mut)}
+.sched-detail{color:var(--mut);overflow-wrap:anywhere;min-width:0}
+@media(max-width:30rem){.sched-row{grid-template-columns:5.5rem 5rem 1fr;gap:.4rem;font-size:.85rem}}
+
+details.job{border-bottom:1px solid var(--line);padding:.35rem 0}
+details.job:last-child{border-bottom:0}
+details.job>summary{display:flex;gap:.6rem;align-items:baseline;flex-wrap:wrap;
+  cursor:pointer;list-style:none;padding:.3rem 0}
+details.job>summary::-webkit-details-marker{display:none}
+details.job>summary::before{content:"\25B8";color:var(--mut);font-size:.72rem;
+  transition:transform .15s ease}
+details.job[open]>summary::before{transform:rotate(90deg)}
+.job-name{font:600 .85rem var(--sans)}
+.job-meta{font:.78rem var(--mono);color:var(--mut)}
+.job-body{padding:.4rem 0 .6rem 1.1rem;font-size:.92rem}
+.job-body h3,.job-body h4{font-size:.85rem;margin:.9rem 0 .3rem}
+
+.act{display:flex;flex-direction:column}
+.act-row{display:grid;grid-template-columns:6rem 1fr auto;gap:.6rem;align-items:baseline;
+  padding:.4rem 0;border-bottom:1px solid var(--line);
+  font:.85rem/1.4 var(--sans)}
+.act-row:last-child{border-bottom:0}
+.act-when{color:var(--mut);font-size:.78rem;white-space:nowrap}
+.act-subj{overflow-wrap:anywhere;min-width:0}
+.act-hash{font:.72rem var(--mono);color:var(--mut)}
+@media(max-width:30rem){.act-row{grid-template-columns:1fr auto}.act-when{grid-column:1/-1}}
+
+/* --- notes ---------------------------------------------------------------- */
+.notes-grid .card h3{font-size:.72rem;text-transform:uppercase;letter-spacing:.09em;
+  color:var(--mut);margin:0 0 .5rem}
+.notes-grid .card li{margin:.35rem 0}
+.notes-pointer{margin:1.2rem 0 0;font-size:.85rem}
+
+/* --- wide pages: fill the window, list flush left --------------------------
+   Alex, 2026-09-03: "make it fill the browser window. left column aligns with
+   browser side… much more like Outlook." The two-pane pages drop the reading
+   column: the frame is the viewport, the list is a fixed-width column against
+   the left edge, and the pane takes everything else. Each pane scrolls on its
+   own inside the window height, the way a mail client does. */
+/* `wide` is the FRAME: full width, header hard against the left. Every page
+   carries it, so the top bar sits in the same place everywhere and does not
+   jump as you move between them. `panes` is the two-column BEHAVIOUR — full
+   window height, list and pane scrolling separately — and only the pages that
+   have two columns carry that. They were one class, which is why the prose
+   pages could not have a matching header without also inheriting a 100vh
+   flex column they must not have. */
+.wrap.wide{max-width:none;margin:0;padding:.6rem .9rem .6rem .9rem}
+/* Prose keeps a reading measure inside the wide frame; the header does not. */
+.wrap.wide .col{max-width:46rem}
+@media(min-width:44rem){
+  .wrap.wide{padding:.6rem 1rem 0 1rem;box-sizing:border-box}
+  .wrap.panes{padding-right:1rem;padding-left:0;display:flex;flex-direction:column;height:100vh}
+  .wrap.panes .top,.wrap.panes .pagehead{padding-left:1rem}
+  .wrap.panes .filt,.wrap.panes .read-count{padding-left:1rem}
+  /* align-items:stretch, not the default start the base .split uses: the list
+     column is a column, and its divider runs to the bottom of the window whether
+     it holds two rows or forty. Alex, 2026-09-03: "draw the left sidebar to
+     the bottom even if it doesn't have a full list." */
+  .wrap.panes .split{grid-template-columns:24rem minmax(0,1fr);gap:0;flex:1;min-height:0;
+    border-top:1px solid var(--line);align-items:stretch}
+
+  .wrap.panes .listcol,.wrap.panes .split>.list{display:flex;flex-direction:column;min-height:0;
+    height:100%;box-sizing:border-box;border-right:1px solid var(--line)}
+  .wrap.panes .listcol .list{flex:1;overflow:auto;min-height:0;padding:.4rem 0}
+  .wrap.panes .split>.list{overflow:auto;padding:.4rem 0}
+  /* Rows must not shrink. The list is a flex column so its divider reaches the
+     bottom; flex children default to shrink, so 146 people rows needing 8,700px
+     were squeezed to 5px each inside a 695px column — present in the DOM,
+     invisible on screen, and every guard passed. Alex, 2026-09-05: "it's
+     black but something is there." */
+  .wrap.panes .split>.list>*{flex:none}
+  .wrap.panes .pane{position:static;max-height:none;height:100%;border:0;border-radius:0;
+    overflow:auto;min-height:0;padding:1.1rem 1.4rem;background:transparent}
+}
+
+/* Outlook-style rows: a flat list separated by hairlines, not a stack of cards.
+   Who is the strong line, the title beneath, one line of preview, the date at
+   the right. The selected row carries an accent bar at the left edge. */
+.panes .list .ob{margin:0;border-radius:0;background:transparent}
+.panes .list .ob::before{display:none}
+/* …except while a swipe is under way. At rest a list row is transparent, so
+   the green strip and its words would show through the text — which is why
+   they were hidden here, and why a swipe on the phone revealed nothing at all
+   until 2026-10-03 (Alex: "make it clear during the swipe that you are
+   marking as done"). So the strip exists only during the gesture, and the
+   row's own face turns opaque for that moment so it still covers it. */
+.panes .list .ob.swiping{background:#2f6b46}
+.panes .list .ob.swiping.armed{background:#2f9a5c}
+.panes .list .ob.swiping::before{display:block}
+/* The resting row is a 4% tint over the page (the row rule near the end of
+   this file), so the swiping face is that same tint laid over the page colour:
+   opaque, and the same shade as the rows around it. */
+.panes .list .ob.swiping .ob-inner{background:
+  linear-gradient(color-mix(in srgb,var(--fg) 4%,transparent),color-mix(in srgb,var(--fg) 4%,transparent)),var(--bg)}
+/* A LIST COLUMN IS AN INDEX, AND EVERY INDEX LOOKS THE SAME.
+ *
+ * This is where the design languages had diverged. Inside a two-pane page the
+ * rule flattened `.ob` rows into separator rows — no border, no radius, no
+ * ground — while the mail and brief lists beside them kept drawing cards,
+ * because they are built from `.card` instead. Same job, same column width,
+ * two shapes. Alex, 2026-09-19, with all of them in one PDF: "we need to
+ * standardize on the design language throughout."
+ *
+ * The shape now says what the thing IS rather than which file drew it: a row in
+ * an index is flat, with a 3px rule carrying its state; a card is for something
+ * that is its own content, like a draft on the Outbox with its words and its
+ * Send. One rule, both grammars. */
+.panes .list .ob-inner,
+.panes .list .card{border:0;border-bottom:1px solid var(--line);border-radius:0;
+  border-left:3px solid transparent;padding:.55rem .9rem .6rem .8rem;background:transparent;
+  margin:0}
+.panes .list .card::before,.panes .list .ob-inner::before{display:none}
+/* …and the state colour moves onto that left border, so it reads the same. */
+.panes .list .ob.urgent .ob-inner,.panes .list .card.urgent{border-left-color:var(--hot)}
+.panes .list .ob.soon .ob-inner{border-left-color:var(--warn)}
+.panes .list .ob.decided .ob-inner{border-left-color:var(--accent)}
+/* `.unread` and not `:not(.read)`: a row on a tier the assistant read for him
+   carries NEITHER class, and a negated selector would have painted every one
+   of them as unread. Alex, 2026-09-19. */
+.panes .list .card-msg.fresh,.panes .list .card-digest.unread{border-left-color:var(--warn)}
+.panes .list .card-digest.longread{border-left-color:var(--info)}
+.panes .list .ob.selected .ob-inner,.panes .list .card.selected{border-left-color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 9%,transparent)}
+.ob-row{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:.6rem;align-items:baseline}
+.ob-row .ob-who{font:600 .85rem var(--sans);color:inherit;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ob-row .ob-age{grid-column:2;font:500 .72rem var(--sans);white-space:nowrap}
+.ob-row .ob-title{grid-column:1/-1;font:500 .92rem/1.35 var(--sans);
+  margin:.1rem 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ob-row .ob-preview{grid-column:1/-1;font:.78rem/1.35 var(--sans);
+  color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:.1rem}
+.ob-row .ob-tags{grid-column:1/-1;display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.3rem}
+.ob-row .ob-title.tappable::after{content:""}
+.panes .list .ob-title.tappable{cursor:pointer}
+
+/* Pane header block: subject large, then who / when / where-from on one line. */
+.pane-head{padding-bottom:.8rem;border-bottom:1px solid var(--line);margin-bottom:.9rem}
+/* Projects inside To Do (2026-09-30): the editor takes the task list's place
+   and fills the page the way it did on its own. `hidden` loses to .split's
+   display:grid unless it says so. */
+.split[hidden],.projwrap[hidden]{display:none!important}
+.projwrap{display:flex;flex-direction:column;min-height:0}
+.wrap.panes .projwrap{flex:1}
+/* The map (web/taskmap.mjs, 2026-09-30). Full width while it is showing; the
+   task pane comes back once a circle is open. */
+.split.mapmode,.wrap.panes .split.mapmode{grid-template-columns:minmax(0,1fr)}
+.split.mapmode>.pane,.split.mapmode #taskpane{display:none}
+.wrap.panes .split.mapmode>.listcol{border-right:0}
+.split.mapmode .sortbar{display:none}
+.map-bar{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin:.6rem 1rem .2rem}
+.map-note{margin:0;font-size:.85rem;flex:1 1 20rem}
+.map-host{position:relative;padding:.4rem 1rem 1.2rem}
+/* A circle is dragged with a finger too, so it must not also scroll the page. */
+.tmap-c{touch-action:none}
+.tmap-c.tmap-dragging{cursor:grabbing}
+.tmap-c.tmap-picked circle{stroke-width:3.2}
+.tmap-c.tmap-drop circle{stroke-width:4;fill:color-mix(in srgb,var(--ok) 32%,transparent);stroke:var(--ok)}
+.ob-draggable{cursor:grab}
+.ob-dragging{opacity:.45}
+.map-back{display:block;margin:.6rem 1rem 0}
+.tmap-c.tmap-dragging circle{fill:color-mix(in srgb,var(--accent) 36%,transparent)}
+.tmap-c.tmap-empty circle{stroke-dasharray:2 3}
+.tmap-c.tmap-empty .tmap-n{fill:var(--mut)}
+.map-add{position:absolute;z-index:3;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;width:260px;box-sizing:border-box;
+  padding:.6rem;background:var(--raised);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.map-add input{flex:1 1 100%;font:inherit;padding:.4rem .5rem;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px}
+.map-add-msg{flex:1 1 100%;font-size:.8rem}
+.tmap{display:block;max-width:100%;height:auto;margin:0 auto;overflow:visible}
+.tmap-c{cursor:pointer;outline:none}
+.tmap-c circle{fill:color-mix(in srgb,var(--accent) 16%,transparent);stroke:var(--accent);stroke-width:1.2;transition:fill .15s}
+.tmap-c.tmap-focus circle{fill:color-mix(in srgb,var(--accent) 30%,transparent);stroke-width:2}
+.tmap-c.tmap-kind circle{fill:color-mix(in srgb,var(--info) 18%,transparent);stroke:var(--info)}
+.tmap-c.tmap-none circle{fill:color-mix(in srgb,var(--mut) 10%,transparent);stroke:var(--mut);stroke-dasharray:5 4}
+.tmap-c:hover circle,.tmap-c:focus-visible circle{fill:color-mix(in srgb,var(--accent) 42%,transparent)}
+.tmap-c.tmap-kind:hover circle,.tmap-c.tmap-kind:focus-visible circle{fill:color-mix(in srgb,var(--info) 40%,transparent)}
+.tmap-c.tmap-none:hover circle,.tmap-c.tmap-none:focus-visible circle{fill:color-mix(in srgb,var(--mut) 24%,transparent)}
+.tmap-n{fill:var(--fg);font:600 20px var(--sans)}
+.tmap-label{fill:var(--fg);font:500 11.5px var(--sans)}
+.tmap-over{fill:var(--hot);font:500 10.5px var(--sans)}
+.tmap-link{stroke:var(--mut);stroke-width:1.2;stroke-dasharray:3 3;opacity:.8}
+.tmap-branch{stroke:var(--accent);stroke-width:2;opacity:.7}
+/* A sub-project on the Projects tab, under its parent. */
+.ob.pr-child .ob-inner{padding-left:2rem}
+.ob.pr-child .ob-who::before{content:'↳ ';color:var(--mut)}
+.tmap-c.tmap-sub circle{fill:color-mix(in srgb,var(--accent) 9%,transparent);stroke:var(--accent);stroke-width:1}
+.tmap-c.tmap-sub .tmap-n{font-size:16px}
+/* + new To Do: a card in the list, typed into (2026-09-30). */
+.map-crumb{justify-content:space-between}
+.ob.ob-new{display:flex;flex-direction:column;gap:.5rem;padding:.8rem 1rem;border-left:3px solid var(--accent);background:var(--raised);border-bottom:1px solid var(--line)}
+.ob-new textarea{font:inherit;width:100%;box-sizing:border-box;padding:.5rem .6rem;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px;resize:vertical}
+.ob-new-row{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.ob-new-row select,.ob-new-row input[type=date]{font:inherit;padding:.3rem .4rem;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:6px}
+.ob-new-msg{font-size:.8rem}
+/* + new To Do at the head of every list (2026-10-04: the one way to add). */
+.list-new{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:.4rem .6rem;padding:.3rem 0 .4rem}
+/* By project's doors, left of + new To Do (2026-10-04). */
+.proj-tools{display:flex;flex-wrap:wrap;gap:.3rem .7rem;margin-right:auto}
+.proj-head{justify-content:flex-start}
+.proj-head .proj-edit{margin-left:auto}
+.proj-empty{padding:.35rem 1rem .6rem;font-size:.82rem}
+.proj-loose{display:block;width:100%;text-align:left;margin-top:.8rem;padding:.6rem 1rem;background:none;
+  border:0;border-top:1px solid var(--line);color:var(--mut);font:.82rem var(--sans);cursor:pointer}
+.proj-loose:hover{color:var(--fg)}
+.tmap-shared{fill:var(--bg);stroke:var(--mut);stroke-width:1}
+.tmap-shared-n{fill:var(--fg);font:600 10px var(--mono)}
+.map-crumb{display:flex;align-items:baseline;gap:.7rem;padding:.5rem 1rem;border-bottom:1px solid var(--line);font-size:.9rem}
+.map-crumb .crumb{margin:0;background:none;border:0;padding:0;cursor:pointer;font:inherit;color:var(--mut)}
+/* A task's Close, top right (2026-09-30): title and meta on the left, the
+   button beside them, never over them. */
+.pane-head.has-close{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:.8rem;align-items:start}
+.pane-head.has-close>.ob-close-top{grid-column:2;grid-row:1 / span 2;align-self:start;margin:0}
+.pane-head .pane-title{font-size:1.25rem;margin-bottom:.4rem}
+.pane-head .ob-meta{margin:0}
+
+/* A cached email opened under its evidence row. */
+.ob-evrow{cursor:pointer;display:flex;gap:.5rem;align-items:baseline}
+/* The subject shrinks and ellipsises; without min-width:0 a flex child keeps
+   its content width and the pane's overflow:hidden clips it mid-word instead. */
+.ob-evrow>span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ob-evrow .ev-open{margin-left:auto;font:.72rem var(--sans);
+  color:var(--mut);text-decoration:none;white-space:nowrap}
+.ob-evrow.opened{color:inherit}
+.mailbody{margin:.4rem 0 .9rem .9rem;padding:.7rem .9rem;border-left:2px solid var(--line);
+  font:.85rem/1.5 var(--sans)}
+.mailbody .read-msghead{margin:.5rem 0 .3rem}
+.mailbody .read-msghead:first-child{margin-top:0}
+.mailbody .read-body{font:.85rem/1.5 var(--sans);white-space:pre-wrap;
+  overflow-wrap:anywhere;margin:0}
+
+/* Reading rows get the same flat treatment. */
+.panes .list .read-group{margin:0}
+.panes .list .read-group>summary{padding:.5rem .9rem;margin:0;border-bottom:1px solid var(--line);
+  background:color-mix(in srgb,var(--mut) 7%,transparent)}
+.panes .list .read-item{margin:0;border:0;border-bottom:1px solid var(--line);border-radius:0;
+  border-left:3px solid transparent;background:transparent;padding:.55rem .9rem .6rem .8rem}
+.panes .list .read-item.selected{border-left-color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 9%,transparent)}
+.panes .list .read-subject{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.panes .list .read-snippet{-webkit-line-clamp:1}
+
+/* --- chat drawer -------------------------------------------------------------
+   Slides in from the right over the active page. Fixed, full height, a bar
+   with a way to the full page and a way out, and the chat in an iframe. On a
+   phone it is the whole width; on a desktop a 28rem column. */
+.chatdrawer{position:fixed;top:0;right:0;bottom:0;width:min(28rem,100vw);z-index:40;
+  display:flex;flex-direction:column;background:var(--bg);
+  border-left:1px solid var(--line);box-shadow:-12px 0 32px rgba(0,0,0,.25);
+  transform:translateX(100%);transition:transform .22s ease;will-change:transform}
+.chatdrawer.open{transform:none}
+.chatdrawer-bar{display:flex;align-items:center;gap:.6rem;padding:.55rem .8rem;
+  border-bottom:1px solid var(--line);flex:none}
+.chatdrawer-name{font:600 .78rem var(--sans);text-transform:uppercase;
+  letter-spacing:.09em;color:var(--mut)}
+.chatdrawer-full{margin-left:auto;font:.78rem var(--sans);
+  color:var(--mut);text-decoration:none}
+.chatdrawer-close{font:1.06rem/1 var(--sans);width:1.9rem;height:1.9rem;
+  border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--mut);
+  cursor:pointer}
+.chatdrawer-frame{flex:1;width:100%;border:0;background:var(--bg)}
+.chatdrawer-backdrop{position:fixed;inset:0;z-index:39;background:rgba(0,0,0,.28);
+  opacity:0;pointer-events:none;transition:opacity .22s ease}
+.chatdrawer-backdrop.open{opacity:1;pointer-events:auto}
+/* On a wide screen the page stays usable beside the drawer; no backdrop. */
+@media(min-width:60rem){.chatdrawer-backdrop{display:none}}
+/* The toggle: a round button in the bottom-right corner, above the drawer so
+   it can also close it. On a phone it sits clear of the home indicator. */
+.chatfab{position:fixed;right:1rem;bottom:calc(1rem + env(safe-area-inset-bottom));z-index:45;
+  width:3.2rem;height:3.2rem;border-radius:999px;border:0;cursor:pointer;
+  background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 6px 20px rgba(0,0,0,.3);transition:transform .15s ease,background .15s ease}
+.chatfab:active{transform:scale(.94)}
+.chatfab.open{background:var(--fg);color:var(--bg)}
+/* Stay out of the composer's way when the drawer is open.
+   The dodge below only ever fired at 60rem+. Under that the drawer still owns
+   the bottom-right corner — it is min(28rem,100vw) wide, so on a phone it is
+   the whole screen and on a tablet it still reaches past right:1rem — and the
+   button sat directly on the composer's send button. Nothing is lost by hiding
+   it: while the drawer is open its only job is closing it, and the drawer's own
+   bar has a close button. Below 60rem the backdrop makes the page behind inert
+   anyway, so a floating toggle over a dimmed page has nothing to return to. */
+body.drawer-open .chatfab{display:none}
+@media(min-width:60rem){
+  /* Wide enough that the page beside the drawer stays live (this is the same
+     breakpoint that drops the backdrop), so the toggle comes back — parked to
+     the LEFT of the drawer, clear of the composer. */
+  body.drawer-open .chatfab{display:flex;right:calc(min(28rem,100vw) + 1rem)}
+}
+
+/* --- tasks: sort bar, tag browse, tag editor -------------------------------- */
+/* Sort is a pair of words, not a pair of buttons: the chosen one is in ink. */
+.sortbar{display:flex;gap:.9rem;padding:.45rem .9rem;border-bottom:1px solid var(--line);flex:none}
+.sortbar button{font:500 .78rem/1 var(--sans);padding:.2rem 0;
+  border:0;background:transparent;color:var(--mut);cursor:pointer}
+.sortbar button:hover{color:var(--fg)}
+.sortbar button[aria-selected=true]{color:var(--fg);font-weight:600}
+/* The tag dropdown sits in the filter row as one more pill. */
+.tagsel{font:500 .78rem var(--sans);padding:.45rem .75rem;
+  border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--mut);
+  cursor:pointer;-webkit-appearance:none;appearance:none;max-width:14rem}
+.tagsel:not([value=""]):focus,.tagsel.active{border-color:var(--fg);color:var(--fg)}
+.ob-tag{font:.66rem/1 var(--sans);color:var(--accent);
+  padding:.16rem .4rem;border-radius:5px;border:1px solid color-mix(in srgb,var(--accent) 45%,transparent)}
+.tagedit{display:flex;gap:.35rem;flex-wrap:wrap;align-items:center;margin:.8rem 0 .2rem}
+.tagedit .ob-tag{cursor:pointer}
+.tagedit .ob-tag:not(.fixed):hover::after{content:" ×"}
+.tagedit .ob-tag.fixed{cursor:default;opacity:.7}
+.tagin{font:16px/1.2 var(--sans);width:7rem;padding:.2rem .5rem;
+  border:1px dashed var(--line);border-radius:999px;background:transparent;color:inherit}
+
+/* --- journal days ----------------------------------------------------------- */
+.jdays{display:flex;gap:.4rem;flex-wrap:wrap;align-items:baseline;margin:.8rem 0;
+  font:.78rem var(--sans);color:var(--mut)}
+.jday{font:500 .78rem var(--mono);color:var(--mut);
+  text-decoration:none;padding:.2rem .5rem;border:1px solid var(--line);border-radius:999px}
+.jday:hover{color:var(--fg);border-color:var(--fg)}
+
+/* --- reference ------------------------------------------------------------- */
+.ref-row{cursor:pointer}
+.ref-row.selected .ob-inner{border-left-color:var(--accent);
+  background:color-mix(in srgb,var(--accent) 9%,var(--bg))}
+.ref-pane .pane-inner{padding:0}
+.ref-pane li{margin:.5rem 0}
+/* Filed mail: tier, subject, sender, date. The subject is the link. */
+.filed{display:flex;flex-direction:column}
+/* Every cell placed explicitly. Left implicit, the chip stretched to fill its
+   track and the date auto-placed itself into the first column. */
+.filed-row{display:grid;grid-template-columns:5.5rem minmax(0,1fr) auto;gap:.15rem .7rem;
+  align-items:baseline;padding:.45rem 0;border-bottom:1px solid var(--line)}
+.filed-row:last-child{border-bottom:0}
+.filed-row .ob-src{grid-column:1;grid-row:1;justify-self:start}
+.filed-link{grid-column:2;grid-row:1;font:.92rem/1.4 var(--sans);
+  color:var(--accent);text-decoration:none;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.filed-when{grid-column:3;grid-row:1;font:.72rem var(--mono);
+  color:var(--mut);white-space:nowrap}
+.filed-who{grid-column:2;grid-row:2;font:.78rem var(--sans);
+  color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.filed-who:empty{display:none}
+
+/* --- digest ------------------------------------------------------------------
+   Day headings and the "worth opening" band down the left list. Quiet: the
+   heading is scaffolding, the rows are the content, and a heading that competes
+   with them turns a scan into a read. */
+.dig-head{font:600 .72rem/1 var(--sans);text-transform:uppercase;
+  letter-spacing:.09em;color:var(--mut);padding:.9rem .9rem .35rem .8rem;
+  position:sticky;top:0;background:var(--bg);z-index:1}
+.dig-head:first-child{padding-top:.35rem}
+
+/* Mark-as-read on a digest row. The dot is the affordance: a digest is mostly
+   read by deciding NOT to open something, so the gesture has to work on the row
+   without a trip through the pane. It toggles both ways — being able to undo is
+   what makes it safe to tap quickly down a list. */
+.dig-row{position:relative}
+.dig-row .ob-inner{padding-right:2.4rem}
+.dig-dot{position:absolute;right:.55rem;top:.6rem;width:1.55rem;height:1.55rem;
+  border-radius:999px;border:1px solid var(--line);background:transparent;
+  cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center}
+.dig-dot::before{content:"";width:.5rem;height:.5rem;border-radius:999px;
+  background:var(--warn)}
+.dig-dot.done{border-color:transparent}
+.dig-dot.done::before{background:transparent;border:1px solid var(--mut);
+  width:.55rem;height:.55rem}
+.dig-dot:hover{border-color:var(--fg)}
+/* Read rows recede rather than vanish: the row is still the record that the
+   thing arrived and was judged, and hiding it would make the digest disagree
+   with its own count. */
+.dig-row.read .ob-who,.dig-row.read .ob-title{color:var(--mut);font-weight:400}
+.dig-row.read .ob-preview,.dig-row.read .ob-tags{opacity:.55}
+.dig-head{display:flex;align-items:baseline;justify-content:space-between;gap:.6rem}
+.dig-allread{font:500 .66rem var(--sans);text-transform:none;
+  letter-spacing:0;padding:.2rem .5rem;border:1px solid var(--line);border-radius:999px;
+  background:transparent;color:var(--mut);cursor:pointer}
+.dig-allread:hover{border-color:var(--fg);color:var(--fg)}
+
+/* --- tables ------------------------------------------------------------------
+   Rendered by markdown.mjs, so these apply everywhere prose is rendered: chat,
+   briefs, notifications, notes.
+
+   The wrapper scrolls, not the page. Five vendors against four columns will not
+   fit a phone, and a table that widens the document takes every other element
+   with it — the failure the .split guard was written for. `width:max-content`
+   is what lets the table be wider than its wrapper so there is something to
+   scroll; without it the cells just crush. */
+.tablewrap{overflow-x:auto;margin:.7rem 0;-webkit-overflow-scrolling:touch}
+.tablewrap table{border-collapse:collapse;width:max-content;min-width:100%;
+  font:.85rem/1.45 var(--sans)}
+.tablewrap th,.tablewrap td{padding:.4rem .7rem;text-align:left;vertical-align:top;
+  border-bottom:1px solid var(--line)}
+.tablewrap th{font-weight:600;color:var(--mut);font-size:.72rem;text-transform:uppercase;
+  letter-spacing:.06em;white-space:nowrap;border-bottom-color:var(--fg)}
+.tablewrap tr:last-child td{border-bottom:0}
+/* Figures line up when they are in a column together. */
+.tablewrap td{font-variant-numeric:tabular-nums}
+/* A cell is a fact, not a paragraph: let it wrap, but do not let one long cell
+   set the whole table's width. */
+.tablewrap td{max-width:22rem;overflow-wrap:anywhere}
+
+/* --- people ------------------------------------------------------------------ */
+.pp-list{margin:.3rem 0 .9rem;padding-left:1.1rem}
+.pp-list li{margin:.3rem 0;font:.92rem/1.45 var(--sans)}
+.pp-list a{color:inherit;text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:2px}
+.pp-list a:hover{text-decoration-color:var(--fg)}
+
+/* --- priorities editor ------------------------------------------------------- */
+.pr-editor{display:block;width:100%;min-height:22rem;margin:.6rem 0;padding:.7rem .8rem;
+  font:.85rem/1.5 var(--mono);color:var(--fg);
+  background:var(--card);border:1px solid var(--line);border-radius:10px;resize:vertical}
+.pr-editor:focus{outline:2px solid var(--accent);outline-offset:1px}
+
+/* =============================================================================
+   Shared UI (web/ui.mjs): cards, chips, sections, swipe, composer, Today.
+   One grammar for every page. A card's kind is visible in its shape — the
+   coloured left rule and the small KIND tag — so a decision, a person, a brief
+   and a debt stop looking like the same row. Alex, 2026-09-05.
+   ========================================================================== */
+/* A chip outside a filter row (the brief's jump bar, the reading toggle) is a
+   small hairline pill; inside `.filt` it is a tab, see above. */
+.chip{font:500 .78rem/1 var(--sans);padding:.4rem .7rem;
+  border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--mut);
+  cursor:pointer;display:inline-flex;gap:.4rem;align-items:baseline}
+.chip b{font:500 .72rem var(--mono);color:var(--mut)}
+.chip:hover{color:var(--fg);border-color:var(--mut)}
+.chip[aria-selected=true]{border-color:var(--fg);color:var(--fg);font-weight:600}
+
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:.6rem;
+  margin:1.4rem 0 .5rem;padding:0 .1rem}
+.sec-head:first-child{margin-top:.4rem}
+.sec-title{font:600 .72rem/1 var(--sans);text-transform:uppercase;
+  letter-spacing:.09em;color:var(--mut)}
+.sec-action{font:500 .72rem var(--sans);padding:.2rem .55rem;
+  border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--mut);cursor:pointer}
+.sec-action:hover{border-color:var(--fg);color:var(--fg)}
+.sec-note{font:.72rem/1 var(--sans);color:var(--mut)}
+
+/* Adding a task by hand (2026-09-16). It sits under the filter bar and stays
+   shut until asked for: the page is for reading what is owed, and a form open
+   on arrival reads as the point of the page. */
+.addopen{margin-left:auto}
+.addform{display:flex;flex-direction:column;gap:.45rem;margin:0 0 .9rem;padding:.7rem .75rem;
+  border:1px solid var(--line);border-radius:12px;background:var(--card)}
+.addform input,.addform select{font:.85rem var(--sans);padding:.45rem .6rem;
+  border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.addform input#addtext{width:100%}
+.addrow{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
+.addrow select,.addrow input{flex:1 1 8rem;min-width:0}
+.addgo{flex:0 0 auto;font:600 .85rem var(--sans);padding:.45rem .9rem;
+  border:1px solid var(--fg);border-radius:999px;background:var(--fg);color:var(--bg);cursor:pointer}
+.addnote{font:.78rem var(--sans);color:var(--mut);min-height:1em}
+
+/* The focus picker (2026-09-16): the chosen projects in order, then the rest. */
+.pr-title{font:600 .92rem var(--sans);color:var(--fg);margin-bottom:.15rem}
+.pr-others{display:flex;flex-direction:column;gap:.35rem;margin-top:1rem}
+/* "Looks like the same thing as …" — a proposal to read, not a Merge button. */
+/* The Outbox pane: the conversation, with his reply at the foot of it.
+   Alex, 2026-09-19: "two columns, the draft at the bottom of the thread." */
+.out-draft{margin:.2rem 0 0;padding:.7rem .85rem;border:1px solid var(--accent);
+  border-radius:var(--radius);background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.out-draft-label{font:600 .72rem var(--sans);text-transform:uppercase;
+  letter-spacing:.08em;color:var(--accent);margin-bottom:.35rem}
+.out-draft-text{font:.92rem/1.5 var(--sans);white-space:pre-wrap;
+  overflow-wrap:anywhere}
+.out-draft .out-actions{margin-top:.7rem}
+.out-draft .card-edit{width:100%;min-height:9rem}
+
+.out-thread{margin:.5rem 0 .2rem}
+.out-thread-msgs{display:flex;flex-direction:column;gap:.7rem;margin:.6rem 0;
+  padding:.1rem 0}
+.out-thread-subject{font:600 .78rem var(--sans);color:var(--mut);
+  padding-bottom:.35rem;border-bottom:1px solid var(--line)}
+.out-msg{display:flex;flex-direction:column;gap:.15rem;padding:.5rem .7rem;
+  border:1px solid var(--line);border-radius:10px;background:var(--card);max-width:min(46ch,100%)}
+.out-msg.mine{align-self:flex-end;background:color-mix(in srgb,var(--fg) 5%,var(--card))}
+.out-msg-who{font:600 .72rem var(--sans);color:var(--mut)}
+.out-msg-text{font:.85rem/1.45 var(--sans);white-space:pre-wrap;
+  max-width:46ch;overflow-wrap:anywhere}
+.out-msg-more{font:.72rem var(--sans);color:var(--mut)}
+
+/* What to do about this sender, above the message rather than after it
+   (2026-09-19). One row, wrapping on a phone; quiet until hovered, because
+   these are standing decisions and not the point of the page. */
+.mail-acts{display:flex;flex-wrap:wrap;gap:.35rem;margin:.6rem 0 .9rem}
+/* Standing decisions about a sender, so they are small — the message beneath
+   is the point of the pane, and three full-size buttons above it were not. */
+.mail-acts .pane-act{margin:0;font-size:.78rem;padding:.35rem .6rem;color:var(--mut)}
+
+/* The shareable code on a task row (2026-09-19). Monospace and quiet: it is a
+   handle to quote, not a thing to read past. */
+.ob-code{font:600 .72rem var(--mono);letter-spacing:.06em;
+  color:var(--mut);background:transparent;border:1px solid var(--line);border-radius:6px;
+  padding:.08rem .3rem;cursor:pointer;grid-column:1;justify-self:start;margin-top:.15rem}
+.ob-code:hover{border-color:var(--fg);color:var(--fg)}
+
+.ob-twin{display:flex;flex-direction:column;gap:.4rem;margin:.9rem 0 .2rem;padding:.6rem .7rem;
+  border:1px dashed var(--line);border-radius:10px}
+.pr-new .pr-field{margin-bottom:.1rem}
+.pr-check{display:flex;align-items:center;gap:.45rem;margin:.4rem 0 .2rem;
+  font:.85rem var(--sans);color:var(--fg)}
+
+/* Cards. The left rule is the kind; urgency turns it hot. */
+.card,.ob-inner{position:relative;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:var(--row-pad-y) var(--row-pad-x) var(--row-pad-y) var(--row-rule);
+  margin:var(--row-gap) 0;font:.92rem/1.4 var(--sans)}
+/* The kind rule. Every row has one; its colour is what says what the row is. */
+.card::before,.ob-inner::before{content:"";position:absolute;left:0;top:.6rem;bottom:.6rem;
+  width:3px;border-radius:2px;background:var(--line)}
+.card[role=button],.ob-inner{cursor:pointer}
+/* Three sides, never the left: the left border is the state rule on an index
+   row, and a hover that turned it grey said "plain" about an item that was
+   late. */
+.card:hover,.ob-inner:hover,.card[role=button]:hover{border-top-color:var(--mut);
+  border-right-color:var(--mut);border-bottom-color:var(--mut)}
+.card.urgent::before{background:var(--hot)}
+.card.theirs::before{background:var(--mut)}
+.card-ob::before{background:var(--accent)}
+.card-ob.theirs::before{background:var(--line)}
+.card-decision::before{background:var(--warn)}
+.card-person::before{background:#6b8fb3}
+/* One meaning for the left rule, on every list. */
+.ob.urgent .ob-inner::before,.card.urgent::before{background:var(--hot)}
+.ob.soon .ob-inner::before{background:var(--warn)}
+.ob.decided .ob-inner::before{background:var(--accent)}
+.card-msg::before{background:var(--line)}
+.card-msg.fresh::before{background:var(--warn)}
+/* The standing pointer to the mail digest, at the head of the briefs list. An
+   anchor, so it needs the colour and decoration a row has and a link does not;
+   the accent rule says it is a destination rather than one more thing said. */
+.sd-digest{display:block;color:inherit;text-decoration:none}
+.sd-digest::before{background:var(--accent)}
+.sd-digest .card-title{font-weight:600}
+.sd-digest.fresh .card-title{color:var(--fg)}
+.sd-digest:hover .card-title{text-decoration:underline}
+.card-digest::before{background:var(--line)}
+.card-digest.longread::before{background:var(--info)}
+.card-digest.read{opacity:.6}
+.card-event::before{background:#5d9c7a}
+.card-event.theirs{opacity:.75}
+.card-ask::before{background:var(--hot)}
+.card-top{display:flex;justify-content:space-between;align-items:baseline;gap:.6rem;margin-bottom:.15rem}
+.card-who{font-weight:600;font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.card-when{flex:none;font-size:.72rem;color:var(--mut);white-space:nowrap;font-variant-numeric:tabular-nums}
+.card.urgent .card-when{color:var(--hot);font-weight:600}
+.card-title{font-weight:500;overflow-wrap:anywhere}
+.card-sub{color:var(--mut);font-size:.85rem;margin-top:.15rem;overflow-wrap:anywhere;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card-rec{color:var(--fg)}
+.card-blocked{color:var(--warn)}
+.card-meta{color:var(--mut);font-size:.72rem;margin-top:.2rem}
+.card-kind{display:inline-block;font:600 .66rem/1 var(--sans);text-transform:uppercase;
+  letter-spacing:.08em;padding:.18rem .4rem;border:1px solid var(--line);border-radius:4px;color:var(--mut)}
+.card-kind-decision{color:var(--warn);border-color:var(--warn)}
+.card-kind-brief{color:var(--accent);border-color:var(--accent)}
+.card-kind-failure{color:var(--hot);border-color:var(--hot)}
+/* The one kind that rang his phone. Hot, like a failure, because both are
+   things that interrupted him rather than waited for him. 2026-09-21. */
+.card-kind-urgent{color:var(--hot);border-color:var(--hot)}
+.card-kind-prep{color:#5d9c7a;border-color:#5d9c7a}
+.card-links{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.45rem}
+.card-link{font:500 .72rem/1 var(--sans);padding:.22rem .5rem;border-radius:999px;
+  border:1px solid var(--line);color:var(--mut);text-decoration:none}
+.card-link:hover{border-color:var(--fg);color:var(--fg)}
+.lk-person::before{content:"@";opacity:.6}
+.lk-prep{color:var(--fg);border-color:var(--fg)}
+
+/* Swipe: right is done, left is later. The label sits under the card. */
+.swipe{position:relative;overflow:hidden;border-radius:12px;margin:.45rem 0}
+.swipe .card{margin:0;transition:transform .18s ease;touch-action:pan-y}
+.swipe-bg{position:absolute;inset:0;display:flex;align-items:center;padding:0 1rem;
+  font:600 .78rem var(--sans);color:#fff;opacity:0;transition:opacity .12s}
+.swipe-bg-right{background:#3f7a58;justify-content:flex-start}
+.swipe-bg-left{background:#6b6b6b;justify-content:flex-end}
+.swipe.arm-right .swipe-bg-right,.swipe.arm-left .swipe-bg-left{opacity:1}
+
+/* The composer that lives at the bottom of every screen. */
+.composer-dock{position:sticky;bottom:0;padding:.6rem 0 calc(.6rem + env(safe-area-inset-bottom));
+  background:linear-gradient(to bottom,transparent,var(--bg) 40%)}
+.composer-bar{display:flex;gap:.5rem;align-items:center;padding:.4rem .4rem .4rem .9rem;
+  border:1px solid var(--line);border-radius:999px;background:color-mix(in srgb,var(--card) 90%,transparent);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 4px 18px rgba(0,0,0,.16)}
+.composer-input{flex:1;min-width:0;border:0;outline:none;background:transparent;color:inherit;
+  font:16px/1.4 var(--sans)}
+.composer-input::placeholder{color:var(--mut)}
+.composer-send{flex:none;width:2.1rem;height:2.1rem;border-radius:999px;border:0;background:var(--accent);
+  color:#fff;font-size:1.06rem;cursor:pointer}
+
+/* Today */
+#today{max-width:46rem;padding-bottom:1rem}
+.today-health{margin:.4rem 0 .8rem;padding:.6rem .8rem;border:1px solid var(--hot);border-radius:10px;
+  font:.85rem/1.4 var(--sans);color:var(--hot)}
+.today-note{font:.78rem var(--sans);color:var(--mut);margin:.3rem .1rem}
+.today-stamp{font:.72rem var(--sans);color:var(--mut);margin:1.6rem .1rem .4rem;text-align:right}
+.pri-line{display:flex;justify-content:space-between;gap:.8rem;align-items:baseline;padding:.45rem .1rem;
+  border-bottom:1px solid var(--line);text-decoration:none;color:inherit;font:.92rem var(--sans)}
+.pri-line:last-of-type{border-bottom:0}
+.pri-name{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pri-move{color:var(--mut);font-size:.85rem;text-align:right;flex:none}
+.pri-line.moved .pri-move{color:var(--fg)}
+.closed-line{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:.5rem;align-items:baseline;
+  padding:.4rem .1rem;border-bottom:1px solid var(--line);font:.92rem var(--sans)}
+.closed-mark{color:#5d9c7a;font-weight:700}
+.closed-title{min-width:0;overflow-wrap:anywhere}
+.closed-by{font:600 .66rem/1 var(--sans);text-transform:uppercase;letter-spacing:.08em;
+  padding:.15rem .4rem;border:1px solid var(--line);border-radius:999px;color:var(--mut)}
+.closed-outcome{grid-column:2/-1;color:var(--mut);font-size:.78rem;margin-top:.1rem;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+
+/* --- search (web/search.mjs) ------------------------------------------------ */
+.nav-search{font-size:1rem;line-height:1;padding-inline:.7rem}
+.search-overlay{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.45);display:flex;
+  align-items:flex-start;justify-content:center;padding:6vh 1rem 1rem}
+.search-box{width:min(40rem,100%);background:var(--card);border:1px solid var(--line);border-radius:14px;
+  box-shadow:0 14px 40px rgba(0,0,0,.35);overflow:hidden;max-height:80vh;display:flex;flex-direction:column}
+.search-input{font:16px/1.4 var(--sans);padding:.9rem 1rem;border:0;outline:none;
+  background:transparent;color:inherit;border-bottom:1px solid var(--line)}
+.search-results{overflow:auto;padding:.4rem .5rem .6rem}
+.search-hint{font:.72rem var(--sans);color:var(--mut);padding:.4rem .5rem}
+.search-kind{font:600 .66rem/1 var(--sans);text-transform:uppercase;letter-spacing:.09em;
+  color:var(--mut);padding:.7rem .5rem .25rem}
+.search-hit{display:block;padding:.5rem .55rem;border-radius:8px;text-decoration:none;color:inherit;
+  font:.92rem/1.35 var(--sans)}
+.search-hit:hover,.search-hit.active{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.search-hit-title{display:block;font-weight:500;overflow-wrap:anywhere}
+.search-hit-sub{display:block;color:var(--mut);font-size:.78rem;margin-top:.1rem}
+body.search-open{overflow:hidden}
+.card.selected{border-color:var(--accent)}
+
+/* The hidden attribute must win over the button's own display:flex — it did
+   not, and the round button sat on the composer on every page with one. */
+.chatfab[hidden]{display:none !important}
+
+/* Today on a wide screen: two columns of whole sections, not one 46rem column
+   hugging the left of a 2000px window. Health, approvals and the stamp span
+   both. The composer follows the same width. Alex, 2026-09-05. */
+.today-sec{min-width:0}
+@media(min-width:60rem){
+  /* Columns, not a grid. A grid aligns its rows across both columns, so a
+     one-line Briefs section beside a tall Today section left a hole the height
+     of the difference under every short section. Columns fill top to bottom
+     and a section never breaks. */
+  #today{max-width:84rem;columns:2;column-gap:2.6rem}
+  #today > *{break-inside:avoid}
+  #today > .wide,#today .today-sec.wide{column-span:all}
+  #todaydock{max-width:84rem}
+}
+
+/* ---- outbox: what is waiting to go out as him ------------------------------
+   One stream, two kinds. The KIND tag says which door sends it (the Mac for a
+   text, the page for mail); the button names the recipient, because that line
+   is the approval and it must say what it approves. */
+.card-outbox::before{background:var(--warn)}
+.card-out{--rule:var(--warn)}
+.card-out::before{background:var(--rule)}
+.card-out.kind-mail{--rule:#6b8fb3}
+.card-out.sent{opacity:.7}
+.card-out.sent::before{background:var(--line)}
+.card-out.failed::before{background:var(--hot)}
+.card-out .card-body{white-space:pre-wrap;font-size:.92rem;line-height:1.45;margin:.4rem 0 .2rem;color:var(--fg)}
+.card-out .card-body.clamp{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+textarea.card-edit{width:100%;min-height:8rem;box-sizing:border-box;font:inherit;font-size:.92rem;line-height:1.45;
+  padding:.5rem .6rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);resize:vertical}
+.out-actions{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-top:.55rem}
+.out-actions button{font:inherit;font-size:.92rem;padding:.42rem .8rem;border-radius:999px;border:1px solid var(--line);
+  background:var(--card);color:var(--fg);cursor:pointer}
+.out-actions button.send{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.out-actions button:disabled{opacity:.5;cursor:default}
+.out-note{font-size:.85rem;color:var(--mut);margin-left:auto}
+.out-note.err{color:var(--hot)}
+.card-out .card-when.stale{color:var(--warn)}
+/* Why a draft may have stopped being true, on the card he sends from. */
+.out-stale{display:flex;gap:.5rem;align-items:baseline;flex-wrap:wrap;margin:.4rem 0 .1rem;
+  padding:.35rem .55rem;border-left:2px solid var(--warn);background:color-mix(in srgb,var(--warn) 8%,transparent);border-radius:0 4px 4px 0}
+.out-stale-tag{font-size:.66rem;letter-spacing:.06em;text-transform:uppercase;color:var(--warn);font-weight:600;flex:none}
+.out-stale-why{font-size:.85rem;color:var(--mut)}
+.card-outbox.has-stale{border-left-color:var(--warn)}
+/* A calendar invite waiting for his tap: the time first, then who it books. */
+.inv-meta{display:flex;flex-wrap:wrap;gap:.4rem .7rem;align-items:baseline;margin:.35rem 0 .2rem}
+.inv-when{font-weight:600;font-variant-numeric:tabular-nums}
+.inv-guests{font-size:.85rem;color:var(--mut)}
+.card-out.kind-invite{border-left-color:var(--accent)}
+#outboxlink.has-stale{color:var(--warn)}
+.card-kind-text{color:var(--warn);border-color:var(--warn)}
+.card-kind-mail{color:#6b8fb3;border-color:#6b8fb3}
+
+/* ---- priorities: the form ---------------------------------------------- */
+.pr-cards{display:flex;flex-direction:column;gap:.7rem;margin:.6rem 0}
+.pr-card{border:1px solid var(--line);border-radius:12px;padding:.7rem .8rem;background:var(--card);display:flex;flex-direction:column;gap:.45rem}
+.pr-field{display:flex;flex-direction:column;gap:.2rem}
+.pr-label{font:600 .72rem/1 var(--sans);text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+.pr-field input,.pr-field textarea{font:inherit;font-size:.92rem;padding:.45rem .55rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);width:100%;box-sizing:border-box}
+.pr-field textarea{resize:vertical;min-height:2.6rem}
+.pr-tools{display:flex;gap:.4rem;justify-content:flex-end}
+.pr-tools button,.pr-add{font:inherit;font-size:.85rem;padding:.3rem .65rem;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+.pr-tools button:disabled{opacity:.35;cursor:default}
+.pr-add{align-self:flex-start;margin:.2rem 0 .6rem}
+.pr-save:disabled{opacity:.5}
+.pr-status{margin-left:.5rem}
+
+/* ---- digest: the message, and the backlog line ---------------------------- */
+.filt-gap{display:inline-block;width:.6rem}
+.card-what{color:var(--mut);font-size:.92rem}
+.read-msg{margin:.6rem 0 .9rem;padding:.6rem .7rem;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.read-msg-head{font-size:.85rem;color:var(--mut);margin-bottom:.35rem}
+.read-msg-text{white-space:pre-wrap;word-break:break-word;font:inherit;font-size:.92rem;line-height:1.45;margin:0}
+.read-count.err{color:var(--hot)}
+
+.card-waiting::before{background:var(--mut)}
+.card-waiting{opacity:.85}
+
+/* To Do: due dates beyond 90 days fold under one head */
+.later-head{margin-top:.8rem}
+.later-box{display:contents}
+
+.filt-tiers{margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--line);width:100%}
+
+/* ---- mail: the digest as a document, not a list ------------------------- */
+.dg-head{display:flex;align-items:baseline;justify-content:space-between;gap:.6rem;margin:.2rem 0 .6rem}
+.dg-title{font-weight:600}
+.dg-more-btn{font:inherit;font-size:.85rem;color:var(--mut);background:none;border:0;padding:.2rem .6rem;cursor:pointer}
+.dg-more{display:block}
+
+/* The digest is set as a brief — same eyebrows and rules, from the same
+   renderer — with one difference that is true of a digest and not of a brief:
+   it runs the width of the pane. Alex, 2026-09-19: "for the Mail digest, fix
+   the early wrapping too." A brief is a piece of writing and wants a reading
+   measure; a digest is a dense list of a hundred receipts under half a dozen
+   labels, and breaking that at 36rem wraps every line early while the mail
+   beside it does not. The other difference: it is read while it is being
+   replaced, so it can be out of date on screen. */
+.dg-prose.brief-body{max-width:none}
+.dg-prose.stale{opacity:.75}
+.dg-prose-meta{font-size:.78rem;color:var(--mut);margin:.2rem 0 .8rem}
+
+.card-prose::before{background:var(--accent)}
+.card-kind-digest{color:var(--accent);border-color:var(--accent)}
+
+/* To Do: a reminder's due date, movable in the pane */
+.due-edit{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:.6rem 0}
+.due-label{font:600 .72rem/1 var(--sans);text-transform:uppercase;letter-spacing:.04em;color:var(--mut)}
+.due-edit input{font:inherit;font-size:.92rem;padding:.35rem .5rem;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.due-edit button{font:inherit;font-size:.85rem;padding:.35rem .7rem;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+
+/* Bold means unread, nothing else. Alex, 2026-09-06: "on the left hand
+   column cards, only use bold text for unread items." A card with no read
+   state — an obligation, a person, an event — is set in the regular weight;
+   an unread mail item or message carries the weight, and loses it once read. */
+.card-who,.card-title,.ob-row .ob-who{font-weight:400}
+.card-digest.unread .ob-who,.card-digest.unread .ob-title,
+.card-msg.fresh .card-who,.card-msg.fresh .card-title,
+.dig-row:not(.read) .ob-who{font-weight:600}
+
+/* To Do: the action center under a task */
+.ob-actions{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-top:.8rem}
+.ob-actions button{font:inherit;font-size:.92rem;padding:.45rem .9rem;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+.ob-actions button.ob-done{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.ob-actions button:disabled{opacity:.5;cursor:default}
+.outcomebox button.ghost,.due-edit button.ghost{background:none;border-color:transparent;color:var(--mut)}
+
+.dg-cadence{font-size:.85rem;margin:-.2rem 0 .5rem}
+
+.today-where{font-size:.85rem;color:var(--mut);margin:-.2rem 0 .4rem}
+
+/* chat: a send from another page, and tool calls that say what they do */
+.me .ctx{display:block;font-size:.72rem;color:var(--mut);margin-top:.25rem}
+.me.queued{opacity:.75}
+.me .note,.tool .note{display:block;font-size:.78rem;color:var(--mut);margin-top:.15rem;white-space:pre-wrap;word-break:break-word}
+.tool .tool-label b{font-weight:600}
+.tool .tool-what{color:var(--mut)}
+.tool.running .tool-label::before{content:"";display:inline-block;width:.55rem;height:.55rem;margin-right:.4rem;border-radius:50%;border:2px solid var(--line);border-top-color:var(--accent);animation:spin 1s linear infinite;vertical-align:-1px}
+.tool.done .tool-label::before{content:"✓";color:var(--accent);margin-right:.35rem}
+.tool.failed .tool-label::before{content:"!";color:var(--hot);margin-right:.35rem}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){.tool.running .tool-label::before{animation:none}}
+
+.ob-ladder{font-size:.85rem;margin:.4rem 0}
+
+/* chat: the thinking line, as Claude shows it — shimmer while live, a fold when done */
+.think{margin:.35rem 0 .35rem .2rem;font-size:.85rem;color:var(--mut)}
+.think summary{cursor:pointer;list-style:none;display:inline-block;padding:.15rem 0}
+.think summary::-webkit-details-marker{display:none}
+.think summary::before{content:"›";display:inline-block;margin-right:.4rem;transition:transform .15s;color:var(--mut)}
+.think[open] summary::before{transform:rotate(90deg)}
+.think.live summary::before{content:"";width:.55rem;height:.55rem;border-radius:50%;background:var(--accent);margin-right:.55rem;vertical-align:-1px;animation:pulse 1.4s ease-in-out infinite;transform-origin:center}
+.think.live summary{color:var(--accent)}
+.think-body{white-space:pre-wrap;word-break:break-word;margin:.3rem 0 .2rem 1rem;padding-left:.6rem;border-left:2px solid var(--line);font-size:.85rem;line-height:1.45;max-height:16rem;overflow:auto}
+.think.live .think-body:empty{display:none}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@keyframes pulse{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+@media (prefers-reduced-motion: reduce){.think.live summary::before{animation:none}}
+
+.composer-bar.running .composer-input::placeholder,#f.running #t::placeholder{color:var(--mut)}
+
+/* mail: a newsletter read in full, inside a sandboxed frame */
+.read-toggle{display:flex;gap:.4rem;margin:.3rem 0 .6rem}
+
+/* Today: live conditions */
+.card-cond::before{background:var(--warn)}
+.card-cond.high::before,.card-cond.critical::before{background:var(--hot)}
+.card-cond.resolved{opacity:.7}
+.card-cond.resolved::before{background:var(--line)}
+
+/* ---- briefs, set as writing -----------------------------------------------
+   Alex, 2026-09-07: "I like how their briefings have more style." The words
+   are the model's; this is the type. One column at a readable measure, a lede,
+   section eyebrows with a rule, a jump bar, and a definition line for the
+   `**term** — detail` shape the briefs already use. */
+.brief-pane{max-width:44rem}
+/* The digest's own frame: no cap. See digest.js on why it is not brief-pane. */
+.digest-pane{max-width:none}
+.brief-title{font-size:1.5rem;line-height:1.25;letter-spacing:-.01em;text-wrap:balance;margin:.1rem 0 .3rem}
+.brief-byline{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mut)}
+.brief-head{border-bottom:1px solid var(--line);padding-bottom:.7rem;margin-bottom:.9rem}
+.brief-revoked{border-left:3px solid var(--ok,var(--mut));padding:.5rem .8rem;margin:0 0 1rem;color:var(--mut);font-size:.9rem;overflow-wrap:break-word}
+
+.brief-body{max-width:36rem;font-size:1rem;line-height:1.62;font-variant-numeric:tabular-nums}
+.brief-body p{margin:.7rem 0}
+.brief-body .lede{font-size:1.06rem;line-height:1.55;color:var(--fg);margin:0 0 1rem;
+  padding-left:.8rem;border-left:3px solid var(--accent)}
+
+.brief-body .brief-sec{display:flex;align-items:center;gap:.6rem;margin:1.6rem 0 .5rem;
+  font:600 .72rem/1 var(--sans);text-transform:uppercase;letter-spacing:.09em;color:var(--mut)}
+.brief-body .brief-sec::after{content:"";flex:1;height:1px;background:var(--line)}
+.brief-body .brief-sec:first-child{margin-top:.4rem}
+
+.brief-jump{display:flex;flex-wrap:wrap;gap:.35rem;margin:0 0 1.2rem}
+.brief-jump-chip{text-decoration:none;font-size:.78rem;padding:.25rem .6rem}
+
+.brief-body ul{margin:.5rem 0;padding-left:1.1rem}
+.brief-body li{margin:.42rem 0}
+.brief-body li.term{list-style:none;margin-left:-1.1rem;padding-left:.8rem;border-left:2px solid var(--line)}
+/* The body of a definition is the news, not a caption for the term — in the
+   2026-09-09 midday brief the muted half was the warning not to call back a
+   number. The bold term and the rule carry the structure; the sentence reads
+   at full strength. Alex, 2026-09-09. */
+.brief-body li.term{color:var(--fg)}
+.brief-body li.term strong{color:var(--fg)}
+.brief-body strong{font-weight:600}
+.brief-body em{color:var(--fg);font-style:italic}
+.brief-body a{color:var(--accent);text-decoration:none;border-bottom:1px solid color-mix(in srgb, var(--accent) 35%, transparent)}
+.brief-body blockquote{margin:.8rem 0;padding:.1rem 0 .1rem .9rem;border-left:3px solid var(--line);color:var(--mut)}
+.brief-body code{font-size:.86em;background:var(--card);padding:.08rem .3rem;border-radius:4px}
+@media(max-width:44rem){.brief-title{font-size:1.25rem}.brief-body{font-size:.92rem}}
+
+/* =============================================================================
+   THE LOOK. Alex, 2026-09-19: "make the Obligations UI feel nicer. Give it some
+   design effort." The tokens at the top of this file say what was chosen;
+   this section is where those choices land on the components above. It comes
+   last on purpose: the rules above carry the layout and the phone bugs they
+   were written for, and these only change how things look.
+   ========================================================================== */
+
+/* --- two voices -------------------------------------------------------------
+   The assistant's own prose is set in the reading face. A brief, the written
+   digest, its one-sentence judgement on a mail, a chat reply, the journal —
+   these are things it WROTE, and they read as writing. Everything else on the
+   page is the machine's data in the UI face. The face says who is speaking. */
+.brief-body,.job-body,.notes-grid .card,.col>.card,.sys-body,
+.pane .what,.think-body,.card-ask .card-sub{font-family:var(--serif)}
+.brief-body{font-size:1.02rem;line-height:1.62}
+.pane .what{font-size:1.02rem;line-height:1.55}
+/* The judgement on a mail is the assistant's lede for that thread — the same
+   treatment the brief's opening sentence gets, so the two read as one voice. */
+#digpane .pane-inner>.what,#digpane .what{padding-left:.85rem;border-left:3px solid var(--accent);margin:.8rem 0 1rem}
+.notes-grid .card,.col>.card{line-height:1.6}
+.notes-grid .card h3,.col>.card h3,.col>.card h4,.col>.card h5{font-family:var(--sans)}
+
+/* --- three kinds of button --------------------------------------------------
+   Secondary: a hairline, squared. Primary: filled with the accent. Quiet: a
+   word. Every button on every page is one of these, so its shape is its
+   weight — and none of them is a pill, because pills are for tags. */
+.ob-actions button,.out-actions button,.pane-act,.outcomebox button,.replybox button,
+.addgo,.pr-tools button,.pr-add,.due-edit button,.read-ignore,.otp-copy,.filt .addopen,
+.ob-done,.dg-done{
+  font:500 .85rem/1 var(--sans);padding:.5rem .8rem;border:1px solid var(--line);border-radius:8px;
+  background:var(--card);color:var(--fg);cursor:pointer;margin:0;
+  transition:border-color .12s,background .12s,color .12s}
+.ob-actions button:hover,.out-actions button:hover,.pane-act:hover,.outcomebox button:hover,
+.pr-tools button:hover,.pr-add:hover,.due-edit button:hover,.read-ignore:hover,.otp-copy:hover,
+.filt .addopen:hover,.dg-done:hover{border-color:var(--mut);color:var(--fg)}
+.ob-actions button.ob-done,.out-actions button.send,.outcomebox button:not(.ghost),.replybox button,
+.addgo,.composer-send{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.ob-actions button.ob-done:hover,.out-actions button.send:hover,.outcomebox button:not(.ghost):hover,
+.replybox button:hover,.addgo:hover{background:color-mix(in srgb,var(--accent) 88%,var(--fg));border-color:transparent}
+.sec-action,.dig-allread,.dg-more-btn,.outcomebox button.ghost,.due-edit button.ghost,.pane-back,
+.chatdrawer-close{border:0;background:transparent;color:var(--mut);padding:.3rem .45rem;border-radius:6px}
+.sec-action:hover,.dig-allread:hover,.dg-more-btn:hover,.outcomebox button.ghost:hover,
+.due-edit button.ghost:hover,.pane-back:hover{color:var(--fg);background:var(--raised);border-color:transparent}
+.pane-back{margin:0 0 .7rem -.45rem;font-size:.85rem}
+.filt .addopen{margin-left:auto;align-self:center;padding:.4rem .7rem;font-size:.78rem;margin-bottom:.35rem}
+.filt .tagsel{align-self:center;font:500 .78rem var(--sans);padding:.4rem 1.4rem .4rem .7rem;border:1px solid var(--line);
+  border-radius:8px;background:var(--card);color:var(--mut);margin-bottom:.35rem;
+  -webkit-appearance:none;appearance:none;max-width:12rem;
+  background-image:linear-gradient(45deg,transparent 50%,var(--mut) 50%),linear-gradient(135deg,var(--mut) 50%,transparent 50%);
+  background-position:calc(100% - .8rem) 50%,calc(100% - .55rem) 50%;background-size:.25rem .25rem;background-repeat:no-repeat}
+/* The second axis on Mail (by date / by sender) sits at the right of the tab
+   row, so it reads as a different question from the view tabs on the left. */
+.filt .filt-gap{flex:1;width:auto}
+/* A sub-row of tier filters under `filed`: small pills, not a second tab row. */
+.filt .filt-tiers{display:flex;gap:.35rem;flex-wrap:wrap;padding:.55rem 0 .65rem;margin:0;border-top:0;width:100%}
+.filt .filt-tiers .chip{border:1px solid var(--line);border-radius:999px;padding:.32rem .6rem;font-size:.78rem;margin:0}
+.filt .filt-tiers .chip[aria-selected=true]{border-color:var(--fg)}
+.read-count{margin:-.2rem 0 .8rem}
+
+/* --- index rows -------------------------------------------------------------
+   A little more air in the row, a tint on hover, and the state rule left
+   alone by the hover (see `.card:hover` above). The heads and notes inside a
+   list column take the row's own left padding — Alex, 2026-09-19: "on some
+   of the pages, the text sits right against the left screen." A day head, a
+   project head and the backlog note were set flush while every row beside
+   them was inset, because the section head was written for a page and reused
+   in a column. */
+/* ONE LEFT EDGE. A row carries a 3px state rule and then its padding, so its
+ * text begins 3px further in than a head with the same padding — which is why
+ * the day heads, the project heads and the digest's notes each sat a hair to
+ * the left of the rows beneath them, in a column where nothing else moves.
+ * Alex, 2026-09-19: "still some space issues on left column." The rule is
+ * the token pair: a row pads from inside its rule, everything else pads to
+ * where the row's text lands. */
+:root{--list-pad:.85rem;--list-inset:calc(.85rem + 3px)}
+.panes .list .ob-inner,.panes .list .card,.panes .list .read-item,.panes .list .sec-head,.panes .list .ref-sec>.sec-head,.panes .list .dig-head,
+.panes .list .dg-head,.panes .list .dg-who,.panes .list .dg-cadence,.panes .list .empty,
+.panes .list>.mut,.panes .list .read-count,.panes .list .dg-group>.dg-more-btn{
+  padding-left:var(--list-inset);padding-right:.9rem;margin-left:0;margin-right:0}
+.panes .list .sec-head{padding-top:.75rem;padding-bottom:.4rem;margin:0}
+.panes .list .sec-head:first-child{padding-top:.5rem}
+.panes .list .dg-cadence{margin:-.2rem 0 .4rem}
+/* The head is a title and one control; the title takes the slack so the
+   button never wraps to a second line under it. */
+.panes .list .dg-head{display:flex;align-items:baseline;gap:.6rem;padding-top:.8rem;padding-bottom:.5rem}
+.panes .list .dg-title{min-width:0;flex:1}
+.panes .list .dg-head .sec-action,.panes .list .dig-head .dig-allread{flex:none;white-space:nowrap;margin-right:-.35rem}
+.panes .list .ob-inner,.panes .list .card,.panes .list .read-item,.panes .list .ob-inner:hover,.panes .list .card:hover,.panes .list .read-item:hover{
+  border-bottom-color:var(--line);background:color-mix(in srgb,var(--fg) 4%,transparent)}
+.panes .list .ob.selected .ob-inner:hover,.panes .list .card.selected:hover{
+  background:color-mix(in srgb,var(--accent) 9%,transparent)}
+.ob-row .ob-age,.card-when{font-variant-numeric:tabular-nums}
+.dig-head,.sec-head .sec-title,.sec-name,.read-from,.msgwho,.read-msghead,.out-msg-who,.out-draft-label,
+.pr-label,.due-label,.otp-label,.search-kind,.dg-who,.brief-byline,.closed-by{letter-spacing:.1em}
+@media(min-width:44rem){
+  .wrap.panes .pane{padding:1.4rem 2rem 2.4rem}
+  .wrap.panes .listcol .sortbar{padding-left:.9rem}
+}
+
+/* --- Today is a desk --------------------------------------------------------
+   Not a stack of bordered boxes. Each section is an eyebrow over a short rule,
+   then flat rows with hairlines between them — the same index grammar as every
+   list column, set as a page. The date is the headline (see `shell()`), and
+   what is left for the eye to weigh is the content. */
+#today .card{border:0;border-radius:0;background:transparent;margin:0;
+  padding:.68rem .6rem .72rem 1rem;border-bottom:1px solid var(--line)}
+#today .card::before{top:.8rem;bottom:.8rem;left:0}
+#today .card:hover{background:color-mix(in srgb,var(--fg) 4%,transparent);border-color:var(--line)}
+#today .card-title{font-size:.92rem}
+#today .card-top{margin-bottom:.1rem}
+#today .card-links{margin-top:.4rem}
+#today .today-sec{margin-bottom:1.5rem}
+#today .sec-head{margin:.2rem 0 0;padding:0 0 .45rem;border-bottom:1px solid color-mix(in srgb,var(--fg) 55%,transparent)}
+#today .pri-line,#today .closed-line{padding:.6rem .6rem .6rem .1rem}
+#today .empty{text-align:left;padding:.7rem .1rem;font-size:.85rem}
+#today .today-note{margin:.5rem .1rem 0}
+#today .today-health{border-radius:8px}
+.today-stamp{margin-top:1.2rem}
+
+/* --- the phone: a tab bar at the bottom -------------------------------------
+   The same `<nav>`, fixed where a thumb rests. Twelve pills wrapped to three
+   rows used to be the first thing on every page and took the top fifth of the
+   screen; now the destinations are six tabs and a `more` that opens upward,
+   and the masthead is one thin line: the mark, the theme switch and search.
+   `--tabbar` is what the composer dock, the corner button and the chat's own
+   dock stand on, so nothing hides behind the bar. */
+@media(max-width:43.99rem){
+  :root{--tabbar:calc(3.35rem + env(safe-area-inset-bottom,0px))}
+  body{padding-bottom:var(--tabbar)}
+  .top{gap:.6rem;border-bottom:0;min-height:0;padding-top:.25rem}
+  .brand{padding:.35rem 0}
+  .navtools{gap:.15rem}
+  .pagehead{margin:.35rem 0 .7rem}
+  h1{font-size:1.35rem}
+  nav.links{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;flex-wrap:nowrap;gap:0;
+    padding:.28rem .3rem calc(.28rem + env(safe-area-inset-bottom,0px));
+    background:color-mix(in srgb,var(--card) 92%,transparent);
+    backdrop-filter:blur(16px) saturate(150%);-webkit-backdrop-filter:blur(16px) saturate(150%);
+    border-top:1px solid var(--line)}
+  nav.links .nl{flex:1 1 0;min-width:0;position:relative;text-align:center;font:500 .66rem/1.2 var(--sans);letter-spacing:0;
+    padding:.7rem 0 .45rem;border:0;margin:0;border-radius:8px;color:var(--mut);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* The count sits in the tab's corner, off the label, so a bold label can
+     never push it out of the box. */
+  nav.links .nl .navbadge{position:absolute;top:.1rem;right:.15rem;margin:0;min-width:.95rem;height:.95rem;
+    line-height:.95rem;font-size:.58rem;padding:0 .25rem}
+  nav.links .nl[aria-current=page]{color:var(--accent);font-weight:600;background:color-mix(in srgb,var(--accent) 9%,transparent)}
+  .more-inline{display:none}
+  details.more{display:block;flex:1 1 0;min-width:0;position:relative}
+  details.more summary{list-style:none;display:block;cursor:pointer}
+  details.more summary::-webkit-details-marker{display:none}
+  .more-menu{position:absolute;bottom:calc(100% + .7rem);right:0;min-width:11.5rem;display:flex;flex-direction:column;
+    padding:.35rem;background:var(--card);border:1px solid var(--line);border-radius:12px;
+    box-shadow:0 12px 34px rgba(0,0,0,.28)}
+  .more-menu .pill{font-size:.92rem;padding:.62rem .85rem;border:0;margin:0;border-radius:8px;color:var(--fg);text-align:left}
+  .more-menu .pill[aria-current=page]{background:var(--raised);font-weight:600}
+  .composer-dock{bottom:var(--tabbar)}
+  .chatfab{bottom:calc(var(--tabbar) + .8rem)}
+}
+
+/* A run-in label: `Bills: AutoPay, Power Co…`, as the briefs set
+   `**Overdue:** …`. The digest groups a hundred receipts under half a dozen of
+   these, and unmarked they were the same weight as the list behind them — so
+   the only way to find the money was to read all of it. See prose.mjs. */
+.brief-body .prose-label{color:var(--fg);font-weight:600;margin-right:.38em}
+.brief-body .prose-label::after{content:":";color:var(--mut);font-weight:400}
+.brief-body p.has-label{margin:.85rem 0}
+/* Every link in a digest paragraph is a thread. Underlined in the accent like
+   the briefs' links, but the run of them in one paragraph should read as text
+   with doors in it rather than as a row of buttons. */
+.brief-body a{text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--accent) 35%,transparent)}
+.brief-body a:hover{border-bottom-color:var(--accent)}
+
+/* Something is written and waiting for his Send, on the row for the debt it
+   discharges. Alex, 2026-09-19: "here are the To Do's with items Drafted so
+   you can see which task the entry is for." Warm, as the outbox pill was:
+   this is the queue where not looking is the whole failure. */
+.ob-draft{font:600 .66rem/1 var(--sans);text-transform:uppercase;letter-spacing:.07em;
+  color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 50%,transparent);
+  border-radius:4px;padding:.18rem .4rem}
+/* The inline thread inside a task pane: the same bubbles the draft sits under,
+   so a conversation looks like a conversation wherever it is read. */
+.mailbody.out-thread-msgs{display:flex;flex-direction:column;gap:.6rem;border-left:0;
+  margin:.4rem 0 1rem;padding:0 0 0 .9rem}
+.pane .out-draft{margin-top:.9rem}
+.pane .out-thread-msgs{margin:.6rem 0 0}
+
+/* A mail renders at its own height: no scrollbar inside a scrollbar. The
+   min-height is the floor while it is being measured, and the fallback when a
+   browser refuses to let us measure at all. Alex, 2026-09-19: "render the
+   email iframe the height of the email, I don't want double scrolling." */
+.read-frame{width:100%;min-height:12rem;border:1px solid var(--line);border-radius:10px;
+  background:#fff;display:block;margin:0 0 .6rem;overflow:hidden}
+
+/* The filter row names its groups. Alex, 2026-09-19: "lets put the pills
+   from archive on the same level as unread." Nine places mail can be, on one
+   line, each under the word for what the group is — rather than seven of them
+   hidden behind a chip on a row that only existed once it was open. */
+.filt-group{font:600 .66rem/1 var(--sans);text-transform:uppercase;letter-spacing:.1em;
+  color:var(--mut);align-self:center;padding:.5rem 0 .6rem;margin-left:.5rem;white-space:nowrap}
+.filt-group:first-child{margin-left:0}
+.filt-group::after{content:"";display:inline-block;width:1px;height:.85em;margin-left:.55rem;
+  background:var(--line);vertical-align:-.1em}
+.filt .chip{margin-bottom:.35rem}
+
+/* The mark-read button sits at the FOOT of its section — where you arrive
+   having read the group, rather than above it before you have. Alex,
+   2026-09-19: "put the mark 42 read at the bottom of each section, not the
+   top." Right-aligned, so a column of them lines up down the page. */
+/* Where the newsletters went, now that they have no pill of their own. Set as
+   an aside on the filter row rather than a pill, because it is not somewhere to
+   go — it is the answer to "where is that tab". */
+.filt-note{color:var(--mut);font:400 .78rem/1 var(--sans);align-self:center;
+  padding:.5rem 0 .6rem;white-space:nowrap}
+/* The trip actions, above the bookings rather than buried under them: it is
+   one button and it belongs to the trip, not to the last hotel in the list. */
+.ref-acts{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin:.1rem 0 .9rem}
+.dg-foot{display:flex;justify-content:flex-end;padding:.25rem .9rem .8rem .85rem}
+/* The one that clears the whole list closes it: a rule across the top and
+   room under it, so it reads as the end of the page rather than as one more
+   section's button that happens to be last. */
+.dg-foot-all{border-top:1px solid var(--line);justify-content:center;
+  margin-top:.3rem;padding:.85rem .9rem 1.4rem}
+/* An action that belongs to the card it is in, not to the list below it. */
+.card-act{display:flex;justify-content:flex-end;margin-top:.5rem}
+.dg-more-btn{display:block;margin:0 0 .2rem;padding:.4rem .9rem .5rem .85rem;text-align:left}
+
+/* A tighter filter row: fourteen pills and three group names have to fit one
+   line. Alex, 2026-09-19: "we need to tighten that menu bar." The grouping
+   toggle travels as one unit, pushed right — split across a wrap, "by date"
+   sat on the first line and "by sender" on the second, reading as two
+   unrelated controls. */
+.filt{gap:0 .8rem}
+.filt-group{margin-left:.25rem}
+.filt-group::after{margin-left:.4rem}
+.filt-tail{display:inline-flex;gap:0 .8rem;white-space:nowrap;margin-left:auto;align-items:baseline}
+
+/* The newsletter sender list: an address per row, with a way out of the half
+   that is ours to change. Alex, 2026-09-19: "instead link to an editable
+   list of emails." */
+.snd-row{display:flex;align-items:baseline;gap:.6rem;padding:.4rem 0;border-bottom:1px solid var(--line)}
+.snd-row:last-child{border-bottom:0}
+.snd-addr{flex:1;min-width:0;font:.85rem var(--mono);overflow-wrap:anywhere}
+.snd-x{flex:none;font:500 .72rem var(--sans);padding:.2rem .5rem;border:1px solid var(--line);
+  border-radius:6px;background:transparent;color:var(--mut);cursor:pointer}
+.snd-x:hover{border-color:var(--hot);color:var(--hot)}
+.snd-in{flex:1 1 14rem;min-width:0}
+
+/* "Unread only": one question with a yes and a no, so a switch rather than two
+   pills — two pills would read as two places to be. Every count on the row
+   follows it, which is why it comes first. Alex, 2026-09-19. */
+/* On the same baseline as the tabs beside it, with the same padding, so the
+   text sits on one line across the whole row. The label is first in the DOM
+   and the track is pulled in front of it with `order` — see digest.js: a flex
+   container takes its baseline from its first flex item, and a track with no
+   text in it has none. Alex, 2026-09-19, twice. */
+.toggle{display:inline-flex;align-items:center;gap:.5rem;border:0;
+  background:transparent;color:var(--mut);cursor:pointer;font:500 .85rem/1 var(--sans);
+  padding:.5rem 0 .6rem;white-space:nowrap}
+.toggle-box{order:-1}
+.toggle:hover{color:var(--fg)}
+.toggle-box{width:2rem;height:1.1rem;border-radius:999px;border:1px solid var(--line);
+  background:var(--raised);position:relative;flex:none;transition:background .14s,border-color .14s;
+  /* Optically centred on the text it labels rather than on its own box. */
+  transform:translateY(.12em)}
+.toggle-box::after{content:"";position:absolute;top:1px;left:1px;width:.85rem;height:.85rem;
+  border-radius:999px;background:var(--mut);transition:transform .14s,background .14s}
+.toggle.on{color:var(--fg);font-weight:600}
+.toggle.on .toggle-box{background:var(--accent);border-color:var(--accent)}
+.toggle.on .toggle-box::after{transform:translateX(.88rem);background:#fff}
+/* A hairline between the toggle, the tiers, and what is not a tier. */
+.filt-sep{align-self:center;width:1px;height:.9rem;background:var(--line);margin:0 .15rem}
+/* A mail row sits flush like a task row. `swipeable` wraps each card in a
+   `.swipe` box with its own radius and vertical margin, which is right for a
+   standalone card and wrong inside an index — it was the whole of the gap
+   Alex saw: "the formating is still much tighter (better) on the to-do list
+   than mail." The task column has no wrapper, so it had no gap. */
+.panes .list .swipe{margin:0;border-radius:0}
+
+/* The mail row IS the task row: it emits `ob-row`, so the grid, the sizes and
+   the ellipsis rules are the ones the task column already uses. Alex,
+   2026-09-19: "on the left hand side use the same design for the cards as on
+   to do." What is left here is only the read state, which a task does not
+   have, and it is defined once, above. */
+.card-tags{display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.4rem}
+.card-tags:empty{display:none}
+
+/* The sender block: one sentence of state, then only the acts still available.
+   Alex, 2026-09-19: "if they are already silent, we should show why they
+   were silent. the whole block in the attachment can be cleaned up." */
+.mail-acts{display:flex;flex-direction:column;gap:.45rem;margin:.9rem 0 1rem}
+.mail-acts-row{display:flex;flex-wrap:wrap;gap:.35rem;align-items:center}
+.mail-acts-why{font:.82rem/1.5 var(--sans);color:var(--mut);max-width:var(--measure)}
+/* A heading over the row, in the same voice as every other section eyebrow.
+   Alex, 2026-09-19: "it is not 'About …:' it is more like actions." */
+.mail-acts-head{font:600 .66rem/1 var(--sans);text-transform:uppercase;letter-spacing:.1em;
+  color:var(--mut)}
+/* The Gmail link is one of the acts, so it looks like one. */
+.mail-acts-row a.pane-act{text-decoration:none;display:inline-flex;align-items:center}
+
+/* A reply, at the foot of the thread. It drafts; sending is a separate tap on
+   a button that names the recipient. Alex, 2026-09-19: "lets add reply box." */
+.mail-reply{margin:1.2rem 0 .4rem;padding-top:.9rem;border-top:1px solid var(--line)}
+.mail-reply-head{font:600 .68rem var(--sans);text-transform:uppercase;letter-spacing:.08em;
+  color:var(--accent);margin-bottom:.45rem}
+.mail-reply .replybox textarea{max-height:14rem}
+.mail-reply .replyrow{gap:.6rem;align-items:center}
+.mail-reply .out-note{margin-left:0;margin-right:auto}
+
+/* Silencing asks first. Alex, 2026-09-19, after an accidental tap archived
+   1,825 Amazon messages: "we should have a confirmation." The panel says what
+   would actually move before it moves anything. */
+.silence{display:contents}
+.silence-ask{flex-basis:100%;display:flex;flex-direction:column;gap:.5rem;margin:.3rem 0;
+  padding:.7rem .85rem;border:1px solid var(--warn);border-radius:10px;
+  background:color-mix(in srgb,var(--warn) 8%,transparent)}
+.silence-what{font:.85rem/1.5 var(--sans);color:var(--fg);max-width:var(--measure)}
+.silence-what.mut{font-size:.78rem;color:var(--mut)}
+.silence-go{border-color:var(--hot);color:var(--hot)}
+.silence-go:hover{background:var(--hot);color:#fff;border-color:var(--hot)}
+
+/* One question, two answers: a segmented control rather than two loose chips.
+   Alex, 2026-09-19: "lets style 'as sent' and 'Text' nicer." */
+.read-toggle{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:.2rem 0 .8rem}
+.seg{font:500 .78rem/1 var(--sans);padding:.42rem .8rem;border:0;background:transparent;
+  color:var(--mut);cursor:pointer;border-right:1px solid var(--line)}
+.seg:last-child{border-right:0}
+.seg:hover{color:var(--fg);background:var(--raised)}
+.seg[aria-selected=true]{background:var(--fg);color:var(--bg);font-weight:600}
+
+/* What a mail client stapled under the reply. Folded, never dropped. */
+.quoted{margin:.2rem 0 .4rem}
+.quoted summary{cursor:pointer;font:.75rem var(--sans);color:var(--mut);list-style:none;padding:.2rem 0}
+.quoted summary::-webkit-details-marker{display:none}
+.quoted summary::before{content:"▸ ";display:inline-block;transition:transform .12s}
+.quoted[open] summary::before{content:"▾ "}
+.quoted summary:hover{color:var(--fg)}
+.quoted .read-msg-text{color:var(--mut);font-size:.8rem;border-left:2px solid var(--line);padding-left:.7rem}
+/* Close: what closed it, as options (2026-09-30). */
+.outcome-opts{display:flex;flex-direction:column;gap:.35rem;flex:1 1 100%}
+.outcome-opt{display:flex;align-items:center;gap:.5rem}
+.outcome-opt[hidden]{display:none}
+.outcome-opt input[type=radio]{flex:none;width:auto;border:0;padding:0;margin:0;accent-color:var(--accent)}
+.outcome-opt input[type=text]{flex:1;min-width:0}
+/* Add tag: existing first, create last (2026-09-30). */
+.tagin-wrap{position:relative;display:inline-block}
+.tagsug{position:absolute;z-index:4;top:100%;left:0;margin-top:.2rem;min-width:16rem;max-width:22rem;display:flex;flex-direction:column;
+  background:var(--raised);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 6px 20px rgba(0,0,0,.25);padding:.25rem 0}
+.tagsug[hidden]{display:none}
+.tagsug-row{all:unset;cursor:pointer;padding:.35rem .7rem;font-size:.85rem;color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tagsug-row.on,.tagsug-row:hover{background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.tagsug-row.create{color:var(--accent);border-top:1px solid var(--line)}
+
+/* LANES AND SESSIONS (dashboard.js). Alex, 2026-10-03: "I need more help to
+   tackle similar to dos in one sitting." The lane chips sit at the top of Mine,
+   in the sort bar's quiet voice; Start is the one loud thing, because it is the
+   one thing on the page that begins a sitting. In the pane, the session bar
+   stays put while the task under it scrolls. */
+.lanebar{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem .9rem;
+  padding:.5rem .9rem .6rem;border-bottom:1px solid var(--line)}
+.lane-chips{display:flex;flex-wrap:wrap;gap:.35rem}
+.lane-chip{font:500 .8rem/1 var(--sans);padding:.38rem .6rem;border-radius:999px;
+  border:1px solid var(--line);background:transparent;color:var(--mut);cursor:pointer}
+.lane-chip b{font:500 .7rem var(--mono);color:var(--mut);margin-left:.15rem}
+.lane-chip[aria-pressed=true]{color:var(--fg);border-color:var(--fg);font-weight:600}
+.lane-start{font:600 .82rem/1 var(--sans);padding:.5rem .8rem;border-radius:999px;
+  border:0;background:var(--accent);color:#fff;cursor:pointer}
+.sessionbar{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;align-items:center;
+  gap:.5rem .8rem;padding:.6rem .9rem;margin:-.2rem 0 .6rem;background:var(--bg);
+  border-bottom:1px solid var(--line)}
+.session-where{font:600 .82rem var(--sans);color:var(--mut);flex:1 1 auto}
+.session-acts{display:flex;gap:.4rem;flex-wrap:wrap}
+.session-btn{font:600 .82rem/1 var(--sans);padding:.5rem .75rem;border-radius:8px;
+  border:1px solid var(--line);background:transparent;color:var(--fg);cursor:pointer}
+.session-btn.done{background:#2f9a5c;border-color:#2f9a5c;color:#fff}
+.session-btn.end{color:var(--mut)}
+.session-msg{flex-basis:100%;font:.78rem var(--sans);color:var(--hot)}
+.session-msg:empty{display:none}
+.session-summary p{font:500 .95rem var(--sans);margin:.4rem 0 1rem}
+
+/* Readied for a session (prepare.mjs): the note under the title. The assistant's
+   words, so the reading face; the rule says whose they are. */
+.prepcard{margin:.6rem 0 .9rem;padding:.65rem .8rem;border-left:3px solid var(--info);
+  background:var(--raised);border-radius:8px}
+.prepcard.pending{border-left-color:var(--line)}
+.prepcard.pending .prep-head::after{content:'';display:inline-block;width:6px;height:6px;margin-left:6px;
+  border-radius:50%;background:currentColor;vertical-align:middle;animation:prep-pulse 1.2s ease-in-out infinite}
+.prepcard.quiet{border-left-color:transparent;background:none;padding-left:0}
+.prep-head{font:500 .75rem/1.3 var(--sans);color:var(--mut)}
+.prep-note{margin-top:.3rem;font:.9rem/1.4 var(--sans)}
+.prep-text{margin-top:.4rem;white-space:pre-wrap;font:1rem/1.45 var(--serif)}
+.lane-hint{flex-basis:100%;font:.75rem/1.3 var(--sans);color:var(--mut);margin-top:.15rem}
+@keyframes prep-pulse{0%,100%{opacity:.25}50%{opacity:1}}
+
+/* Keep in Inbox, once held (2026-10-09). */
+.keep-inbox[data-kept="1"]{border-color:var(--info);color:var(--info)}
+
+/* Today's order (rank.mjs, 2026-10-09): the number on a row, the block in its
+   pane, and the note under the priority sort. */
+.rank-chip{display:inline-block;margin-right:.4rem;padding:0 .35rem;border-radius:4px;font:600 .72rem/1.5 var(--sans);
+  background:var(--accent);color:#fff;vertical-align:1px}
+.ob.dragging{opacity:.45}
+.ob.drop-here{box-shadow:inset 0 2px 0 var(--accent)}
+.rank-block{margin:.5rem 0 .8rem;padding:.55rem .75rem;border-radius:8px;background:var(--raised)}
+.rank-line{font:.88rem/1.4 var(--sans)}
+.rank-suggest{margin-top:.25rem;font:.8rem/1.35 var(--sans)}
+.rank-acts{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.45rem}
+.rank-btn,.rank-again{font:.78rem var(--sans);padding:.3rem .6rem;border-radius:999px;border:1px solid var(--line);
+  background:var(--card);color:var(--fg);cursor:pointer}
+.rank-note{display:inline-flex;align-items:center;gap:.45rem;margin-left:auto;font:.75rem var(--sans)}

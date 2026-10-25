@@ -1,0 +1,9 @@
+[Unit]
+Description=obligations: minute reminder dispatcher (deterministic, no LLM)
+
+[Service]
+Type=oneshot
+User=__USER__
+Environment=OBLIGATIONS=__OBLIGATIONS__
+ExecStart=/usr/bin/python3 __OBLIGATIONS__/deploy/reminder-dispatch.py
+TimeoutStartSec=60

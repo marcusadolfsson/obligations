@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Runs the iMessage extract-and-sync every 15 minutes.
+
+  Install to ~/Library/LaunchAgents/ and edit __HOME__ to the real home path
+  (launchd does not expand ~ or $HOME in ProgramArguments).
+
+  __PYTHON__ is substituted by install-mac.sh with the RESOLVED interpreter,
+  not the /usr/bin/python3 shim: those are different code identities
+  (com.apple.dt.xcode_select.tool-shim-public vs com.apple.python3), and a Full
+  Disk Access grant naming the shim can be inert for the binary that actually
+  runs. Runs python directly, NOT a shell wrapper. macOS attributes Full
+  Disk Access to the process it launches, so a bash wrapper would need its own
+  grant — and granting /bin/bash full disk access hands out far more than
+  granting it to one interpreter.
+
+  RunAtLoad fires once on login so a freshly-booted Mac catches up rather than
+  waiting a quarter of an hour. 15 minutes is chosen against what this feeds: a
+  07:00 brief and the odd "who am I ignoring" question. Polling chat.db harder
+  would buy nothing and burn battery on a laptop.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.example.obligations.imessage</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PYTHON__</string>
+    <string>__HOME__/obligations/deploy/integrations/imessage-extract.py</string>
+    <string>--push</string>
+    <string>linuxbox:obligations/integrations/imessage.json</string>
+  </array>
+
+  <key>StartInterval</key>
+  <integer>900</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- Both captured so a failure is diagnosable without re-running by hand. -->
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/obligations-imessage.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/obligations-imessage.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>OBLIGATIONS_HOST</key>
+    <string>linuxbox</string>
+    <key>PATH</key>
+    <string>/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin</string>
+  </dict>
+</dict>
+</plist>

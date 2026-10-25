@@ -1,0 +1,142 @@
+# The Obligations app for iPhone, iPad and Mac — a WKWebView around
+# https://obligations.example.com with push notifications.
+#
+# This file is the project. `xcodegen generate` rewrites Obligations.xcodeproj from
+# it, and the .xcodeproj is gitignored, so anything changed in Xcode's UI
+# (team, capabilities, plist keys) is undone on the next generate. Change it
+# HERE. Same reasoning as deploy/mac-app's Package.swift: what needs reviewing
+# is the decisions, and a .pbxproj is where decisions go to hide.
+name: Obligations
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "14.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+
+settings:
+  base:
+    # Swift 6 compiler in Swift 5 language mode. The app is four files of
+    # delegate glue; strict concurrency would cost annotations and buy nothing.
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    # your team — the team whose developer certificate is in this
+    # Mac's keychain. Automatic signing registers the App ID and its push
+    # capability on first device build (xcodebuild -allowProvisioningUpdates).
+    DEVELOPMENT_TEAM: ABCDE12345
+    CODE_SIGN_STYLE: Automatic
+
+targets:
+  # iPhone and iPad are one target; the page adapts by width, the app by
+  # size class. Not Catalyst and not "Designed for iPad" on the Mac — the
+  # Mac gets its own target below so it is a real Mac window with a real
+  # Mac menu, and so the push token it registers says "macos".
+  Obligations:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/Shared
+      - path: Sources/iOS
+      - path: Resources
+    info:
+      path: Sources/iOS/Info.plist
+      properties:
+        CFBundleDisplayName: Obligations
+        LSRequiresIPhoneOS: true
+        ITSAppUsesNonExemptEncryption: false
+        UIApplicationSupportsIndirectInputEvents: true
+        # Location, sparingly: significant changes and visits, which need
+        # Always to arrive in the background. The text is the whole ask, in
+        # Alex's terms — iOS shows it verbatim, and a vague one gets a no.
+        NSLocationWhenInUseUsageDescription: Obligations records where you are so your assistant knows where you are and where you have been. The place is named on this phone and sent only to your own server.
+        NSLocationAlwaysAndWhenInUseUsageDescription: With Always, Obligations can note arrivals and departures without being opened — a handful of points a day, never continuous tracking. The place is named on this phone and sent only to your own server.
+        # Lets a significant-change or visit wake finish its geocode and POST.
+        # No continuous updates are ever started; see LocationReporter.
+        UIBackgroundModes:
+          - location
+        # No storyboard: a launch screen that is just the page's background
+        # colour, so the hand-off to the web view is a fade rather than a flash.
+        UILaunchScreen:
+          UIColorName: PageBackground
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    entitlements:
+      path: Sources/iOS/Obligations.entitlements
+      properties:
+        # "development" here means the sandbox gateway. Xcode rewrites it to
+        # "production" when the app is exported with a distribution profile
+        # (TestFlight, App Store), and the app reports which one it got — see
+        # ObligationsConfig.apsEnvironment — so the server can route accordingly.
+        aps-environment: development
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.obligations.app
+        PRODUCT_NAME: Obligations
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SUPPORTS_MACCATALYST: NO
+        SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO
+
+  # Same bundle id as iOS: one APNs topic, one App ID, one server-side
+  # notion of "the app". The PRODUCT_NAME differs because /Applications
+  # already holds Obligations.app — the menu-bar extractor from deploy/mac-app,
+  # bundle id com.example.obligations — and two bundles with one name in one
+  # folder is how the wrong one gets launched.
+  ObligationsMac:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/Shared
+      - path: Sources/macOS
+      - path: Resources
+    info:
+      path: Sources/macOS/Info.plist
+      properties:
+        CFBundleDisplayName: Obligations
+        LSApplicationCategoryType: public.app-category.productivity
+        NSHumanReadableCopyright: ""
+        NSLocationUsageDescription: Obligations records where this Mac is so your assistant knows where you are. The place is named here and sent only to your own server.
+        NSLocationWhenInUseUsageDescription: Obligations records where this Mac is so your assistant knows where you are. The place is named here and sent only to your own server.
+    entitlements:
+      path: Sources/macOS/ObligationsMac.entitlements
+      properties:
+        # Sandboxed, unlike deploy/mac-app, because this one has no reason
+        # not to be: it shows a web page and receives pushes. The only thing
+        # it needs is the network.
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+        com.apple.security.personal-information.location: true
+        # The macOS spelling of the same entitlement.
+        com.apple.developer.aps-environment: development
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.obligations.app
+        PRODUCT_NAME: Obligations Web
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO
+        ENABLE_HARDENED_RUNTIME: YES
+
+schemes:
+  Obligations:
+    build:
+      targets:
+        Obligations: all
+    run:
+      config: Debug
+  ObligationsMac:
+    build:
+      targets:
+        ObligationsMac: all
+    run:
+      config: Debug

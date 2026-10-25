@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!--
+    NOT sandboxed, deliberately.
+
+    The App Sandbox and Full Disk Access are mutually exclusive in practice: a
+    sandboxed app cannot read ~/Library/Messages/chat.db no matter what the user
+    grants, because the sandbox denies it before TCC is ever consulted. Reading
+    that database is the app's primary job.
+
+    This is a personally-signed app that runs on one Mac and is never shipped
+    through the App Store, so the trade is bounded — but it is a real trade and
+    should be a decision, not a default. What limits it instead:
+
+      - Hardened Runtime is on (build.sh passes -o runtime), so code injection
+        and unsigned library loading are blocked.
+      - The app talks to exactly two places: Google's OAuth and API endpoints,
+        and the assistant over Tailscale via scp. Both are in the source, neither is
+        configurable by anything the app reads.
+      - It never executes anything it did not ship: the three extractors in
+        Resources/, /usr/bin/python3, /usr/bin/scp, /usr/bin/ssh.
+
+    If sandboxing ever becomes necessary, chat.db access has to move to a
+    separate non-sandboxed helper — the app cannot simply gain the entitlement.
+  -->
+
+  <!--
+    Apple Events, needed to tell Messages to send an approved draft.
+
+    This was false while the app only read. Sending moved into the app
+    (Outbox.swift, replacing the imessage-send LaunchAgent) and driving
+    Messages is an Apple Event, so under Hardened Runtime this must be true or
+    osascript is refused by the runtime with no dialog — the same failure the
+    addressbook entitlement below caused for Contacts.
+
+    It is not a general grant: Automation is still per-target and per-app, so
+    macOS prompts once for Messages specifically on the first send, and the
+    app can drive nothing it has not been approved for. What bounds the
+    capability is not this key but the two refusals in Outbox.swift — approved
+    status only, and only to a handle already seen in a recent thread.
+
+    The JIT and unsigned-memory exceptions remain absent on purpose. Nothing
+    here needs them, and each one is a hole in the Hardened Runtime.
+  -->
+  <key>com.apple.security.automation.apple-events</key>
+  <true/>
+
+  <!--
+    Required to read Contacts, and not optional under Hardened Runtime.
+
+    The resource-access entitlements are not only a sandbox thing: with
+    `-o runtime`, an app that asks for Contacts without declaring this is
+    refused by the runtime itself, before TCC is reached. CNContactStore
+    reports that as CNErrorDomain 100 "Access Denied" — the same code a user
+    who clicked Don't Allow produces — and no consent dialog is ever shown.
+
+    That cost an hour here: the grant looked like a stale TCC record, so it was
+    reset four times, the app was rebuilt and relaunched, and every attempt
+    failed identically because nothing about TCC was ever wrong. The tell is
+    that the app never appears in the Contacts list in System Settings — an app
+    denied by the runtime never gets far enough to be listed.
+
+    Full Disk Access is unaffected, which is why iMessage and Calls worked
+    throughout: FDA has no corresponding entitlement and is pure TCC.
+  -->
+  <key>com.apple.security.personal-information.addressbook</key>
+  <true/>
+  <!--
+    Reminders, for the Apple Reminders bridge (Reminders.swift). Same story as
+    the addressbook key above: under Hardened Runtime an app that asks for
+    EventKit without declaring this is refused by the runtime before TCC is
+    consulted, and no dialog appears. Calendars and reminders share this one
+    key; the app only ever asks for .reminder.
+  -->
+  <key>com.apple.security.personal-information.calendars</key>
+  <true/>
+</dict>
+</plist>

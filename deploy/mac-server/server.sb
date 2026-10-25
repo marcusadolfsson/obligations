@@ -1,0 +1,146 @@
+;; The Seatbelt profile the assistant server runs under on the Mac.
+;;
+;; Why it exists. On linuxbox the agent — which runs a shell and reads mail that
+;; strangers write — lived on a different machine from Alex's messages, his
+;; contacts and the ability to text people as him. On the Mac mini they share a
+;; disk. This profile is the boundary that replaced the machine boundary:
+;; Obligations.app holds Full Disk Access and sends texts; the server holds nothing,
+;; and this file is what stops it reaching for what Obligations.app holds.
+;;
+;; The shipped copy lives INSIDE the signed Obligations Server.app bundle, and that
+;; is the one sandbox-exec loads. This file in the repo is the source. The
+;; agent can edit the repo, so it can edit this file — but only a human
+;; rebuilding the bundle ships the change. Same model as the extractors.
+;;
+;; Parameters (sandbox-exec -D):
+;;   OBLIGATIONS   the repo working copy           /Users/you/Developer/obligations
+;;   HOME    his home directory              /Users/you
+;;   TMPDIR  the per-user temporary dir      /private/var/folders/…/T
+;;
+;; Shape: allow by default, then take away. A deny-by-default profile is the
+;; textbook answer and does not survive contact with node, git and the Claude
+;; CLI — hundreds of mach services, sysctls and system paths, each a failure
+;; at 07:00 with nobody watching. What matters here is a short list of things
+;; that must never be read, written or driven, and that list is below. In
+;; Seatbelt the LAST matching rule wins, which is why each deny is followed by
+;; the narrow allows that carve the working set back out of it.
+;;
+;; deploy/mac-server/sandbox.test.sh runs under this profile and asserts every
+;; deny denies and every allow allows. Seatbelt is deprecated; that test is the
+;; tripwire for the day a macOS update changes what it means.
+
+(version 1)
+(allow default)
+
+;; ---------------------------------------------------------------- reading
+;;
+;; Nothing under his home directory, except the working set.
+
+(deny file-read* (subpath (param "HOME")))
+
+;; Walking to the repo means stat'ing /Users/you and ~/Developer on the way.
+;; Metadata only — a listing of the home directory is still refused.
+(allow file-read-metadata
+  (literal (param "HOME"))
+  (literal (string-append (param "HOME") "/Developer")))
+
+(allow file-read*
+  ;; The repo: code, data, the Claude config under deploy/claude-home, the
+  ;; MCP servers and the SDK under deploy/agent-service/node_modules.
+  (subpath (param "OBLIGATIONS"))
+  ;; git reads these on every commit; neither holds a credential.
+  (literal (string-append (param "HOME") "/.gitconfig"))
+  (subpath (string-append (param "HOME") "/.config/git"))
+  ;; npm and node caches, for nothing worse than speed.
+  (subpath (string-append (param "HOME") "/.npm"))
+  (subpath (string-append (param "HOME") "/Library/Caches/node-gyp")))
+
+;; Its own log. The launcher points stdout/stderr at
+;; ~/Library/Logs/Obligations Server/ before exec, and node fstat()s descriptors 0-2
+;; at startup and calls abort() — no message — on any error but EBADF. Denied
+;; metadata there made every launch die in InitializeOncePerProcess while the
+;; same command from a shell, logging to the temp dir, booted fine.
+(allow file-read-metadata
+  (subpath (string-append (param "HOME") "/Library/Logs/Obligations Server")))
+
+;; Belt and braces on the paths that matter most. The home deny above already
+;; covers them; these say it by name, so that widening the allow list later
+;; cannot quietly reopen one, and so a reader sees what the profile is for.
+(deny file-read*
+  (subpath (string-append (param "HOME") "/Library/Messages"))
+  (subpath (string-append (param "HOME") "/Library/Application Support/Obligations"))
+  (subpath (string-append (param "HOME") "/Library/Application Support/AddressBook"))
+  (subpath (string-append (param "HOME") "/Library/Application Support/CallHistoryDB"))
+  (subpath (string-append (param "HOME") "/Library/Calendars"))
+  (subpath (string-append (param "HOME") "/Library/Group Containers/group.com.apple.reminders"))
+  (subpath (string-append (param "HOME") "/Library/Keychains"))
+  (subpath (string-append (param "HOME") "/Library/Mail"))
+  (subpath (string-append (param "HOME") "/.ssh"))
+  (subpath (string-append (param "HOME") "/.obligations-server"))
+  (subpath (string-append (param "HOME") "/.local")))
+
+;; ---------------------------------------------------------------- writing
+;;
+;; The repo and scratch space. Nothing else on the disk — in particular not
+;; ~/.local/bin/claude, which Obligations.app runs for "Sign in with Claude", and not
+;; /opt/homebrew, where node lives.
+
+(deny file-write*)
+(allow file-write*
+  (subpath (param "OBLIGATIONS"))
+  (subpath (string-append (param "HOME") "/Library/Logs/Obligations Server"))
+  (subpath (param "TMPDIR"))
+  (subpath "/private/tmp")
+  (subpath "/private/var/folders")
+  (subpath (string-append (param "HOME") "/.npm"))
+  (literal "/dev/null")
+  (literal "/dev/zero")
+  (literal "/dev/tty")
+  (literal "/dev/dtracehelper")
+  (regex #"^/dev/fd/")
+  (regex #"^/dev/ttys[0-9]+$")
+  (regex #"^/dev/ptmx$"))
+
+;; ---------------------------------------------------------------- acting as him
+;;
+;; Obligations.app is the only thing on this machine that sends a text as Alex.
+;; Driving Messages is an Apple Event; refusing every Apple Event closes that
+;; and every other app-scripting door at once. osascript is refused by name too,
+;; because the error from a refused exec is clearer than a refused event.
+
+(deny appleevent-send)
+(deny process-exec
+  (literal "/usr/bin/osascript")
+  (literal "/usr/bin/automator")
+  (literal "/usr/bin/shortcuts")
+  ;; open launches apps and hands URL schemes to them — sms:, imessage:,
+  ;; mailto:. Nothing the server does needs it.
+  (literal "/usr/bin/open"))
+
+;; ---------------------------------------------------------------- switches
+;;
+;; Obligations.app's switches are preferences, not files: outboxEnabled (the sender),
+;; the Reminders writer arms, and Obligations Server's own `enabled`. Preferences are
+;; written through cfprefsd, so the file-write deny above does not cover them —
+;; measured 2026-10-01: under this profile without the rule below,
+;; `defaults write` succeeded. That would let the agent switch on the one thing
+;; on this machine that texts people as Alex. Nothing the server runs needs
+;; to write a preference at all, so the deny is total.
+
+(deny user-preference-write)
+
+;; ---------------------------------------------------------------- network
+;;
+;; Out to anywhere: Anthropic, Google, ntfy, APNs.
+;;
+;; In: port 7683 only. Seatbelt's bind filter checks the PORT and ignores the
+;; address — measured 2026-10-01: `(allow network-bind (local ip
+;; "localhost:7699"))` let node listen on 0.0.0.0:7699 and :::7699, and refused
+;; 127.0.0.1:7700. So this cannot force loopback; it can stop the agent opening
+;; any other listener. Loopback is the server's own choice (HOST=127.0.0.1 in
+;; the launchd plist), and an exposed 7683 is still refused without a valid
+;; Cloudflare Access token (REQUIRE_ACCESS=1). The tunnel is Tavern's and
+;; reaches the server at localhost:7683.
+
+(deny network-bind)
+(allow network-bind (local ip "localhost:7683"))

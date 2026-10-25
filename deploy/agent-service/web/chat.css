@@ -1,0 +1,219 @@
+/* Chat layout. Loaded after style.css.
+ *
+ * The page is a fixed-height column: header, scrolling transcript, composer.
+ * That is deliberate and it is what fixes "does not scroll to the bottom" —
+ * previously the body itself scrolled on mobile, so setting scrollTop on the
+ * transcript element did nothing at all.
+ */
+
+/* The chat wears the same frame as every other page. Alex, 2026-09-19:
+   "also rebuilt the chat full screen to match the design language." It used to
+   centre the whole page in a 46rem column, so its header and nav sat in the
+   middle of the window while every other page had them hard against the left —
+   navigating to chat moved the furniture. The frame is now `.wrap.wide`, the
+   same one the dashboard pages use, and the READING MEASURE moved onto the
+   transcript where it belongs: prose wants 46rem, a top bar does not. */
+body{
+  height:100dvh;             /* not min-height: the body must NOT scroll */
+  overflow:hidden;
+  display:flex;flex-direction:column;
+}
+.wrap.chatpage{
+  flex:1;min-height:0;display:flex;flex-direction:column;
+}
+
+#log{
+  flex:1;min-height:0;       /* min-height:0 or a flex child refuses to shrink */
+  overflow-y:auto;
+  width:100%;max-width:46rem;margin-inline:auto;   /* the measure, on the prose */
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  display:flex;flex-direction:column;gap:1.1rem;
+  /* The composer floats over the transcript, so the transcript has to reserve
+     the space it covers or the newest message sits permanently underneath it.
+     --dockh is measured in chat.js: the composer grows as you type. */
+  padding-bottom:calc(var(--dockh,7rem) + .6rem);
+}
+
+/* Assistant text sits plain on the page — no card, no bubble. A card around
+   every reply makes long answers feel boxed in and wastes horizontal space,
+   which is the whole budget on a phone.
+   Set in the reading face: the assistant's own prose is serif everywhere — the
+   brief, the digest, the judgement on a mail — and his words are in the UI
+   face, so the transcript says who is speaking without a label. */
+.obligations{font:1rem/1.6 var(--serif)}
+.obligations > :first-child{margin-top:0}
+.obligations > :last-child{margin-bottom:0}
+.obligations p{margin:.65rem 0}
+
+/* The user's own words are the thing worth delineating. */
+.me{
+  background:var(--raised);
+  border-radius:var(--radius) var(--radius) 4px var(--radius);padding:.6rem .9rem;
+  align-self:flex-end;max-width:88%;
+  font:.92rem/1.5 var(--sans);
+  white-space:pre-wrap;
+}
+
+.tool{font:.78rem/1.5 var(--mono);
+  color:var(--mut);padding-left:.1rem}
+.err{color:var(--hot);border:1px solid var(--hot);border-radius:var(--radius);
+  padding:.6rem .85rem;font:.92rem var(--sans)}
+
+/* --- pending work: drafts and approvals ----------------------------------- */
+.draft,.ask{border-radius:var(--radius);padding:.75rem .9rem;
+  font:.92rem/1.55 var(--sans);background:var(--card);
+  border:1px solid var(--line)}
+.draft{border-left:3px solid var(--warn)}
+.ask{border-left:3px solid var(--hot)}
+.draft .hd,.ask .hd{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;
+  margin-bottom:.4rem}
+.draft .hd{color:var(--warn)} .ask .hd{color:var(--hot)}
+.draft .txt{white-space:pre-wrap;margin-bottom:.7rem}
+.ask pre{background:var(--bg);border-radius:8px;padding:.5rem .65rem;margin:.4rem 0 .7rem;
+  font:.78rem/1.45 var(--mono);white-space:pre-wrap;max-height:11rem;overflow:auto}
+.draft button,.ask button{margin-right:.4rem}
+
+/* --- composer ------------------------------------------------------------- */
+
+/* Floating, not stacked. As a flex child it owned a permanent strip of the
+   screen and the transcript stopped at its top edge; fixed, the conversation
+   runs the full height and the composer sits over it. The dock itself is inert
+   — pointer-events pass through the padding to the transcript underneath, so
+   the fade is a fade and not an invisible 5rem dead zone above the keyboard. */
+.dock{
+  position:fixed;left:0;right:0;bottom:0;z-index:5;
+  padding:.5rem .9rem max(.6rem,env(safe-area-inset-bottom));
+  pointer-events:none;
+  background:linear-gradient(to bottom,
+    color-mix(in srgb,var(--bg) 0%,transparent) 0,
+    color-mix(in srgb,var(--bg) 78%,transparent) 2.2rem,
+    var(--bg) 4.5rem);
+}
+.dockinner{max-width:46rem;margin-inline:auto;pointer-events:auto}
+form{flex:none}
+.composer{
+  border:1px solid var(--line);border-radius:20px;
+  /* Translucent over the transcript. Text sliding under a solid bar reads as a
+     seam; blurred behind glass reads as depth. */
+  background:color-mix(in srgb,var(--card) 86%,transparent);
+  backdrop-filter:blur(20px) saturate(160%);
+  -webkit-backdrop-filter:blur(20px) saturate(160%);
+  box-shadow:0 4px 22px rgba(0,0,0,.16);
+  padding:.55rem .6rem .5rem;
+}
+textarea{
+  display:block;width:100%;
+  min-width:0;                 /* a textarea's intrinsic `cols` width is what
+                                  overflowed the page on a phone */
+  border:0;outline:none;resize:none;background:transparent;color:inherit;
+  font:1rem/1.5 var(--sans);
+  padding:.35rem .45rem;
+  /* A third of the viewport. Long messages are normal — a five-line cap made
+     you compose in a letterbox — but past a third the transcript disappears
+     and you lose the thing you are replying to. */
+  max-height:33dvh;
+}
+textarea::placeholder{color:var(--mut)}
+.controls{display:flex;align-items:center;gap:.4rem;padding:.15rem .1rem 0;flex-wrap:nowrap}
+.controls .spacer{flex:1;min-width:0}
+select{font:500 .85rem/1 var(--sans);color:inherit;
+  background:transparent;border:1px solid var(--line);border-radius:999px;
+  padding:.4rem .5rem;max-width:9.5rem}
+.icon{flex:none;width:2.1rem;height:2.1rem;border-radius:999px;border:1px solid var(--line);
+  background:transparent;color:inherit;font-size:1.06rem;line-height:1;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;padding:0}
+.icon.send{background:var(--accent);border-color:var(--accent);color:#fff}
+.icon:disabled{opacity:.45}
+#stop{display:none;border-color:var(--hot);color:var(--hot)}
+#mic svg{display:block}
+#mic.rec{border-color:var(--accent);color:var(--accent);
+  animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.45}}
+
+#chips{display:flex;gap:.35rem;flex-wrap:wrap;padding:0 .1rem}
+#chips:not(:empty){margin-top:.4rem}
+.chip{font:.78rem var(--sans);padding:.25rem .5rem;
+  border:1px solid var(--line);border-radius:999px;display:inline-flex;gap:.4rem;
+  align-items:center;max-width:12rem}
+.chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip b{cursor:pointer;color:var(--mut);font-weight:400}
+.thumb{max-height:1.5rem;max-width:2.2rem;border-radius:4px;display:block}
+
+/* Jump to latest. Only shown when the transcript is scrolled away from the
+   bottom, so it is an answer to a question you are already asking. */
+#jump{
+  position:absolute;left:50%;transform:translateX(-50%);
+  width:2.4rem;height:2.4rem;border-radius:999px;
+  border:1px solid var(--line);background:var(--card);color:inherit;
+  font-size:1.06rem;line-height:1;cursor:pointer;
+  display:none;align-items:center;justify-content:center;
+  box-shadow:0 2px 10px rgba(0,0,0,.18);
+}
+#jump.show{display:inline-flex}
+.composer{position:relative}
+#jump{top:-3.2rem}
+
+#status{font:.78rem var(--sans);color:var(--mut);
+  min-height:1.1em;padding:.25rem .2rem 0;text-align:center}
+body.drag{outline:2px dashed var(--mut);outline-offset:-6px}
+
+/* --- embedded in the drawer -------------------------------------------------
+   Same page, same script; only the top bar goes, because the page hosting the
+   drawer already has one. Everything else — the pinned composer, the log
+   scroll — is the same behaviour in a narrower viewport. */
+body.embed .top,body.embed .pagehead{display:none}
+body.embed #log{padding-top:.4rem}
+
+/* On a phone the tab bar owns the bottom edge; the composer sits on top of it
+   and the transcript reserves room for both. `--tabbar` is 0 where the bar is
+   not drawn (a wide window, the drawer's embedded chat), so nothing moves. */
+.dock{bottom:var(--tabbar,0px)}
+#log{padding-bottom:calc(var(--dockh,7rem) + var(--tabbar,0px) + .6rem)}
+
+/* --- the running context ------------------------------------------------------
+   What the system did while you sat here: a brief landed, a code went to your
+   phone. Drawn as a rule across the column, never as a bubble — a bubble says
+   "the assistant said this to you", and these are things the assistant DID, with no
+   model in the loop. The visual grammar has to carry that difference or the
+   transcript starts lying about what is a reply. */
+.sys{margin:.35rem 0;border-top:1px solid var(--line);color:var(--mut);
+  font:.78rem/1.4 var(--sans)}
+.sys-head{display:flex;align-items:baseline;gap:.5rem;padding:.35rem .1rem;cursor:pointer}
+.sys-head:hover .sys-title{color:var(--fg)}
+.sys-head:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+/* Expanded: the title stops being clipped, because the point of opening it is
+   to read the whole thing. */
+.sys.open .sys-title{white-space:normal;overflow:visible}
+.sys.open{color:var(--fg)}
+.sys-body{padding:.1rem .1rem .5rem;font:.85rem/1.6 var(--serif);
+  color:var(--fg)}
+.sys-body > :first-child{margin-top:0}
+.sys-body ul,.sys-body ol{padding-left:1.1rem;margin:.4rem 0}
+.sys-body li{margin:.25rem 0}
+.sys-body p{margin:.5rem 0}
+.sys-open{display:inline-block;margin-top:.5rem;font:.78rem var(--sans);
+  color:var(--mut);text-decoration:none}
+.sys-open:hover{color:var(--fg)}
+.sys-kind{flex:none;font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;
+  padding:.1rem .38rem;border:1px solid var(--line);border-radius:999px}
+.sys-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sys-when{flex:none;font-variant-numeric:tabular-nums}
+/* Unread: the same warning bar the notification rows use, so the two pages
+   agree about what "you have not looked at this" looks like. */
+.sys.fresh{color:var(--fg)}
+.sys.fresh .sys-kind{border-color:var(--warn);color:var(--warn)}
+
+/* "Always" — approve, and stop asking for this tool. Deliberately quieter than
+   Approve: it is the bigger decision, so it should not be the easy tap. */
+.ask button.always{border-color:var(--line);color:var(--mut)}
+.ask button.always:hover{border-color:var(--fg);color:var(--fg)}
+
+/* Drafts waiting, as one line above the conversation rather than a stack of
+   cards on top of it. Alex, 2026-09-15. The decision to send lives on
+   /outbox, with the stale warnings; this only says there is something there. */
+.outbox-bar{display:block;margin:.5rem 0 .25rem;padding:.55rem .85rem;border-radius:8px;
+  border:1px solid var(--line);border-left:3px solid var(--warn);background:var(--card);
+  color:var(--fg);text-decoration:none;font-size:.85rem;line-height:1.3}
+.outbox-bar:hover{border-color:var(--warn)}
+.outbox-bar.has-stale{color:var(--warn)}
